@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#F5F5F7">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>Gesture Game 2025</title>
+    <title>ジェスチャーゲーム</title>
     <style>
-        /* --- 2025 Modern Light Theme --- */
+        /* --- Modern Light Theme --- */
         :root {
             --bg-app: #F5F5F7;
             --surface: #FFFFFF;
@@ -200,7 +200,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            padding-bottom: 20px; /* スクロール時の余白確保 */
+            padding-bottom: 20px;
         }
 
         .btn-primary {
@@ -351,19 +351,33 @@
             align-items: center;
         }
 
-        /* Result Screen Scroll Fix */
-        #screen-result {
-            /* スクロール設定は .screen クラスで定義済みだが、
-               内部コンテナのflex設定で確実にスクロールさせる */
+        /* Shake Screen */
+        #screen-shake {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
         }
-        
+        .shake-animation {
+            font-size: 100px;
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) infinite;
+            display: inline-block;
+            margin-bottom: 24px;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0) rotate(-5deg); }
+            20%, 80% { transform: translate3d(4px, 0, 0) rotate(5deg); }
+            30%, 50%, 70% { transform: translate3d(-8px, 0, 0) rotate(-10deg); }
+            40%, 60% { transform: translate3d(8px, 0, 0) rotate(10deg); }
+        }
+
+        /* Result Screen Scroll Fix */
         .result-container {
             width: 100%;
             max-width: 600px;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            min-height: 100%; /* コンテンツが少なくても高さを確保 */
+            min-height: 100%;
         }
 
         .result-score {
@@ -376,15 +390,37 @@
         }
         
         .result-lists-wrapper {
-            flex: 1; /* 残りの領域を埋める */
+            flex: 1;
             display: flex;
             flex-direction: column;
         }
 
+        .result-history-list {
+            background: var(--surface);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .res-item-row {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--surface-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .res-item-row:last-child { border-bottom: none; }
+        
+        .status-icon.correct { color: var(--success); font-size: 20px; }
+        .status-icon.pass { color: var(--warning); font-size: 20px; }
+
         #video-section {
             display: none;
             width: 100%;
-            margin-top: 20px;
+            margin-top: 10px;
             flex-shrink: 0;
         }
         
@@ -425,8 +461,7 @@
     <div id="screen-splash" class="screen active">
         <div class="splash-content">
             <span class="splash-icon">🎭</span>
-            <h1>Gesture Game</h1>
-            <p class="subtitle">2025 Edition</p>
+            <h1>ジェスチャーゲーム</h1>
             <div style="margin-top: 20px; width: 100%;">
                 <p style="margin-bottom:24px; color:var(--text-sub); font-size:14px; line-height: 1.5;">
                     このゲームはスマホの傾きを使用します。<br>
@@ -483,7 +518,7 @@
             </div>
 
             <div class="action-area">
-                <button id="btn-start-game" class="btn-primary" disabled onclick="startGameFlow()">ゲームスタート</button>
+                <button id="btn-start-game" class="btn-primary" disabled onclick="prepareShakeStart()">ゲームスタート</button>
             </div>
         </div>
     </div>
@@ -502,13 +537,20 @@
         </div>
     </div>
 
-    <!-- 5. カウントダウン画面 -->
+    <!-- 5. Shake Screen (New) -->
+    <div id="screen-shake" class="screen">
+        <div class="shake-animation">🌪️</div>
+        <h1>振ってスタート！</h1>
+        <p class="subtitle">スマホを元気よく振ってください</p>
+    </div>
+
+    <!-- 6. カウントダウン画面 -->
     <div id="screen-countdown" class="screen" style="justify-content:center; align-items:center;">
         <div style="font-size:140px; font-weight:900; color:var(--accent);" id="count-number">3</div>
         <p style="margin-top:20px; font-weight:600; font-size:20px; color:var(--text-main);">スマホを垂直に構えて！</p>
     </div>
 
-    <!-- 6. ゲーム画面 -->
+    <!-- 7. ゲーム画面 -->
     <div id="screen-game" class="screen">
         <video id="camera-feed" class="camera-bg" autoplay playsinline muted></video>
         <div class="game-ui">
@@ -530,7 +572,7 @@
         </div>
     </div>
 
-    <!-- 7. 結果画面 -->
+    <!-- 8. 結果画面 -->
     <div id="screen-result" class="screen">
         <div class="result-container">
             <div style="text-align:center; padding-top:10px;">
@@ -539,12 +581,9 @@
             </div>
             
             <div class="result-lists-wrapper">
-                <div style="background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow-sm); overflow:hidden; margin-bottom:16px;">
-                    <div style="padding:15px; background:var(--surface-secondary); color:var(--text-sub); font-size:13px; font-weight:700;">正解リスト</div>
-                    <div id="result-list-correct"></div>
-                    
-                    <div style="padding:15px; background:var(--surface-secondary); color:var(--text-sub); font-size:13px; font-weight:700; border-top:1px solid #ddd;">パスリスト</div>
-                    <div id="result-list-pass"></div>
+                <p style="font-size:13px; color:var(--text-sub); margin-bottom:8px; font-weight:600;">出題履歴</p>
+                <div class="result-history-list" id="result-history-container">
+                    <!-- JSで履歴生成 -->
                 </div>
 
                 <!-- 動画再生エリア -->
@@ -577,6 +616,7 @@
             qIndex: 0,
             correct: [],
             pass: [],
+            history: [], // { word: string, status: 'correct'|'pass' }
             timeLeft: 0,
             isPlaying: false,
             
@@ -592,7 +632,7 @@
 
         // --- DOM要素 ---
         const $ = id => document.getElementById(id);
-        const screens = ['splash', 'home', 'list', 'countdown', 'game', 'result'];
+        const screens = ['splash', 'home', 'list', 'shake', 'countdown', 'game', 'result'];
         
         function switchScreen(name) {
             screens.forEach(s => {
@@ -710,8 +750,8 @@
             }
         }
 
-        // --- ゲーム開始 ---
-        function startGameFlow() {
+        // --- ゲーム準備 (Shake) ---
+        function prepareShakeStart() {
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch(() => {});
             }
@@ -720,7 +760,7 @@
             if (state.useCamera) {
                 navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'user' },
-                    audio: false // 音声は含めない
+                    audio: false
                 }).then(stream => {
                     $('camera-feed').srcObject = stream;
                     setupRecorder(stream);
@@ -734,8 +774,26 @@
             state.qIndex = 0;
             state.correct = [];
             state.pass = [];
+            state.history = [];
             
-            startCountdown();
+            // Shake画面へ
+            switchScreen('shake');
+            window.addEventListener('devicemotion', handleShake);
+        }
+
+        function handleShake(e) {
+            const acc = e.accelerationIncludingGravity;
+            if (!acc) return;
+            
+            // 合成加速度で振りを検知 (重力9.8含むので、激しく振ると20-30以上になる)
+            const force = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
+            
+            // 閾値：25 m/s^2 (強めに振る)
+            if (force > 25) {
+                window.removeEventListener('devicemotion', handleShake);
+                playTone(600, 'square', 0.1);
+                setTimeout(() => startCountdown(), 200);
+            }
         }
 
         function setupRecorder(stream) {
@@ -746,15 +804,10 @@
                     : (MediaRecorder.isTypeSupported('video/mp4') ? { mimeType: 'video/mp4' } : {});
                 
                 state.mediaRecorder = new MediaRecorder(stream, options);
-                
                 state.mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        state.recordedChunks.push(event.data);
-                    }
+                    if (event.data.size > 0) state.recordedChunks.push(event.data);
                 };
-            } catch (e) {
-                console.error("Recorder Setup Error", e);
-            }
+            } catch (e) { console.error("Recorder Setup Error", e); }
         }
 
         function startCountdown() {
@@ -798,12 +851,8 @@
             gameInterval = setInterval(() => {
                 state.timeLeft--;
                 updateGameUI();
-                
                 if (state.timeLeft <= 5) $('game-timer').classList.add('warning');
-                
-                if (state.timeLeft <= 0) {
-                    finishGame();
-                }
+                if (state.timeLeft <= 0) finishGame();
             }, 1000);
         }
 
@@ -813,7 +862,7 @@
             $('question-display').innerText = state.questions[state.qIndex] || '終了';
         }
 
-        // --- 判定ロジック (Deep Tilt Only) ---
+        // --- 判定ロジック (Deep Tilt) ---
         function handleMotion(e) {
             if (!state.isPlaying) return;
 
@@ -830,7 +879,7 @@
                 return;
             }
 
-            // 閾値を厳しく（9.0 = ほぼ真下/真上）
+            // 閾値：深く倒す (9.0)
             const THRESHOLD_TRIGGER = 9.0; 
             const THRESHOLD_RESET = 3.0; 
 
@@ -857,6 +906,9 @@
 
             const item = state.questions[state.qIndex];
             
+            // 履歴に追加
+            state.history.push({ word: item, status: isCorrect ? 'correct' : 'pass' });
+
             if (isCorrect) {
                 state.correct.push(item);
                 showFeedback('correct', '正解！');
@@ -894,12 +946,10 @@
             clearInterval(gameInterval);
             window.removeEventListener('devicemotion', handleMotion);
 
-            // 録画停止 & カメラ停止
             if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
                 state.mediaRecorder.onstop = () => {
                     const blob = new Blob(state.recordedChunks, { type: 'video/webm' });
                     state.videoBlob = blob;
-                    
                     const videoURL = URL.createObjectURL(blob);
                     $('recorded-video').src = videoURL;
                     $('video-section').style.display = 'block';
@@ -909,32 +959,26 @@
                 $('video-section').style.display = 'none';
             }
             
-            // カメラストリーム停止
             const vid = $('camera-feed');
-            if (vid.srcObject) {
-                vid.srcObject.getTracks().forEach(t => t.stop());
-            }
+            if (vid.srcObject) vid.srcObject.getTracks().forEach(t => t.stop());
 
             playTone(600, 'sawtooth', 0.5); 
             
-            // 結果表示
             $('result-number').innerText = state.correct.length;
             
-            $('result-list-correct').innerHTML = state.correct.length > 0 
-                ? state.correct.map(item => 
-                    `<div class="list-item" style="cursor:default;">
-                        <span>${item}</span><span style="color:var(--success)">⭕</span>
-                     </div>`
-                ).join('')
-                : '<div style="padding:15px; color:#888;">なし</div>';
+            // 履歴を一括表示（出題順）
+            const historyHtml = state.history.length > 0 
+                ? state.history.map(h => `
+                    <div class="res-item-row">
+                        <span>${h.word}</span>
+                        <span class="status-icon ${h.status}">
+                            ${h.status === 'correct' ? '⭕' : '⏭️'}
+                        </span>
+                    </div>
+                `).join('')
+                : '<div style="padding:15px; color:#888; text-align:center;">なし</div>';
 
-            $('result-list-pass').innerHTML = state.pass.length > 0
-                ? state.pass.map(item => 
-                    `<div class="list-item" style="cursor:default;">
-                        <span>${item}</span><span style="color:var(--warning)">⏭️</span>
-                     </div>`
-                ).join('')
-                : '<div style="padding:15px; color:#888;">なし</div>';
+            $('result-history-container').innerHTML = historyHtml;
 
             switchScreen('result');
         }
