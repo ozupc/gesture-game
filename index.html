@@ -197,6 +197,9 @@
             margin-top: auto;
             padding-top: 20px;
             width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
 
         .btn-primary {
@@ -214,6 +217,18 @@
         }
         .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
         .btn-primary:disabled { background: var(--surface-secondary); color: var(--text-sub); box-shadow: none; cursor: not-allowed; }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 16px;
+            background: var(--surface);
+            color: var(--accent);
+            font-size: 17px;
+            font-weight: 600;
+            border: 1px solid var(--surface-secondary);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+        }
 
         /* List Screen */
         .list-container {
@@ -341,7 +356,21 @@
             font-weight: 800;
             color: var(--accent);
             text-align: center;
-            margin: 10px 0 30px;
+            margin: 10px 0 20px;
+        }
+        
+        #video-section {
+            display: none;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        #recorded-video {
+            width: 100%;
+            border-radius: var(--radius-md);
+            background: #000;
+            margin-bottom: 10px;
+            max-height: 250px;
         }
 
         /* Rotate Warning */
@@ -359,17 +388,6 @@
 
         @keyframes pulse { 50% { opacity: 0.5; } }
         
-        /* Debug */
-        #sensor-debug {
-            position: absolute;
-            bottom: 5px;
-            left: 5px;
-            font-size: 10px;
-            color: rgba(255,255,255,0.5);
-            pointer-events: none;
-            z-index: 100;
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -380,7 +398,7 @@
         <h2>スマホを横向きにしてね</h2>
     </div>
 
-    <!-- 2. スプラッシュ（最初の許可画面） -->
+    <!-- 2. スプラッシュ -->
     <div id="screen-splash" class="screen active">
         <div class="splash-content">
             <span class="splash-icon">🎭</span>
@@ -437,16 +455,12 @@
                 </div>
             </div>
 
-            <!-- エラー表示 -->
             <div id="error-msg" style="display:none; background:#FFEBEB; color:#FF3B30; padding:10px; border-radius:8px; font-size:13px; text-align:center; margin-bottom:10px;">
                 データ読み込みエラー<br>Webサーバー経由でアクセスしてください
             </div>
 
             <div class="action-area">
                 <button id="btn-start-game" class="btn-primary" disabled onclick="startGameFlow()">ゲームスタート</button>
-                <div style="margin-top:20px; text-align:center; font-size:11px; color:#ccc;" onclick="toggleDebug()">
-                    Ver 4.1 (Double Check)
-                </div>
             </div>
         </div>
     </div>
@@ -491,7 +505,6 @@
             <div class="fb-icon" id="fb-icon">⭕</div>
             <div class="fb-text" id="fb-text">正解！</div>
         </div>
-        <div id="sensor-debug">Z: 0.0</div>
     </div>
 
     <!-- 7. 結果画面 -->
@@ -502,15 +515,24 @@
                 <div class="result-score"><span id="result-number">0</span><span style="font-size:30px;">問</span></div>
             </div>
             
-            <div style="flex: 1; overflow-y: auto; margin: 10px 0; background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow-sm);">
-                <div style="padding:15px; background:var(--surface-secondary); color:var(--text-sub); font-size:13px; font-weight:700; position:sticky; top:0;">正解リスト</div>
-                <div id="result-list-correct"></div>
-                
-                <div style="padding:15px; background:var(--surface-secondary); color:var(--text-sub); font-size:13px; font-weight:700; position:sticky; top:0;">パスリスト</div>
-                <div id="result-list-pass"></div>
+            <div style="flex: 1; overflow-y: auto; margin: 0 0 16px 0;">
+                <div style="background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow-sm); overflow:hidden; margin-bottom:16px;">
+                    <div style="padding:15px; background:var(--surface-secondary); color:var(--text-sub); font-size:13px; font-weight:700;">正解リスト</div>
+                    <div id="result-list-correct"></div>
+                    
+                    <div style="padding:15px; background:var(--surface-secondary); color:var(--text-sub); font-size:13px; font-weight:700; border-top:1px solid #ddd;">パスリスト</div>
+                    <div id="result-list-pass"></div>
+                </div>
+
+                <!-- 動画再生エリア -->
+                <div id="video-section">
+                    <p style="font-size:14px; font-weight:600; margin-bottom:8px;">プレイ動画</p>
+                    <video id="recorded-video" controls playsinline></video>
+                    <button id="btn-save-video" class="btn-secondary" onclick="downloadVideo()">動画を保存する</button>
+                </div>
             </div>
 
-            <div class="action-area">
+            <div class="action-area" style="padding-top:0;">
                 <button class="btn-primary" onclick="goHome()">ホームに戻る</button>
             </div>
         </div>
@@ -535,11 +557,14 @@
             timeLeft: 0,
             isPlaying: false,
             
-            // ジャイロ制御（高度化）
-            motionState: 'neutral', // 'neutral', 'holding', 'triggered', 'cooldown'
-            holdStartTime: 0,
-            holdDirection: null, // 'correct' or 'pass'
-            cooldownEndTime: 0
+            // ジャイロ制御
+            motionState: 'neutral', // 'neutral' or 'triggered' or 'cooldown'
+            cooldownEndTime: 0,
+
+            // 録画
+            mediaRecorder: null,
+            recordedChunks: [],
+            videoBlob: null
         };
 
         // --- DOM要素 ---
@@ -597,7 +622,7 @@
             }
         }
 
-        // --- 設定画面の操作 ---
+        // --- 設定画面 ---
         function openGenreList() {
             const container = $('list-content');
             container.innerHTML = state.genres.map(g => `
@@ -640,12 +665,9 @@
         }
 
         function goHome() { switchScreen('home'); }
+        function checkStartable() { $('btn-start-game').disabled = !state.selectedGenre; }
 
-        function checkStartable() {
-            $('btn-start-game').disabled = !state.selectedGenre;
-        }
-
-        // --- カメラ権限 ---
+        // --- カメラ権限 & 設定 ---
         async function toggleCamera() {
             const btn = $('btn-camera-toggle');
             if (!state.useCamera) {
@@ -665,21 +687,24 @@
             }
         }
 
-        // --- ゲーム開始フロー ---
+        // --- ゲーム開始 ---
         function startGameFlow() {
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch(() => {});
             }
 
+            // カメラ・録画準備
             if (state.useCamera) {
                 navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'user' },
-                    audio: false
+                    audio: false // 音声は含めない（ハウリング防止等）
                 }).then(stream => {
                     $('camera-feed').srcObject = stream;
+                    setupRecorder(stream);
                 }).catch(e => console.error(e));
             } else {
                 $('camera-feed').srcObject = null;
+                state.mediaRecorder = null;
             }
 
             state.questions = [...state.selectedGenre.items].sort(() => Math.random() - 0.5);
@@ -688,6 +713,26 @@
             state.pass = [];
             
             startCountdown();
+        }
+
+        function setupRecorder(stream) {
+            state.recordedChunks = [];
+            try {
+                // Safariなど互換性のためmimeTypeを指定しない、またはmp4/webmをトライする
+                const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+                    ? { mimeType: 'video/webm;codecs=vp9' } 
+                    : (MediaRecorder.isTypeSupported('video/mp4') ? { mimeType: 'video/mp4' } : {});
+                
+                state.mediaRecorder = new MediaRecorder(stream, options);
+                
+                state.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        state.recordedChunks.push(event.data);
+                    }
+                };
+            } catch (e) {
+                console.error("Recorder Setup Error", e);
+            }
         }
 
         function startCountdown() {
@@ -709,20 +754,23 @@
             }, 1000);
         }
 
-        // --- ゲームメインループ ---
+        // --- ゲームループ ---
         let gameInterval;
 
         function launchGame() {
             switchScreen('game');
             state.isPlaying = true;
             state.timeLeft = state.time;
-            
-            // 状態リセット
             state.motionState = 'neutral';
             state.cooldownEndTime = 0;
             
             updateGameUI();
             
+            // 録画開始
+            if (state.mediaRecorder && state.mediaRecorder.state === 'inactive') {
+                state.mediaRecorder.start();
+            }
+
             window.addEventListener('devicemotion', handleMotion);
 
             gameInterval = setInterval(() => {
@@ -743,69 +791,47 @@
             $('question-display').innerText = state.questions[state.qIndex] || '終了';
         }
 
-        // --- 高度な判定ロジック ---
+        // --- 即時判定ロジック (Speed Priority) ---
         function handleMotion(e) {
             if (!state.isPlaying) return;
 
             const z = e.accelerationIncludingGravity.z;
             if (z === null) return;
             
-            $('sensor-debug').innerText = `Z: ${z.toFixed(2)} | ST: ${state.motionState}`;
-            
             const now = Date.now();
 
-            // 1. 強制クールダウン中（判定後1秒間は無視）
+            // 1. 強制クールダウン (誤作動防止)
             if (state.motionState === 'cooldown') {
                 if (now > state.cooldownEndTime) {
-                    state.motionState = 'triggered'; // クールダウン明けは「戻り待ち」へ
+                    state.motionState = 'triggered'; 
                 }
                 return;
             }
 
-            // 閾値（ヒステリシスを持たせる）
-            const THRESHOLD_TRIGGER = 7.0; // しっかり傾ける
-            const THRESHOLD_RESET = 2.0;   // しっかり戻す
+            const THRESHOLD_TRIGGER = 7.0; // 閾値
+            const THRESHOLD_RESET = 3.0;   // 復帰閾値（少し緩めに）
 
-            // 2. ニュートラル：判定待ち
+            // 2. ニュートラル：判定
             if (state.motionState === 'neutral') {
+                // 閾値を超えたら即反応
                 if (z > THRESHOLD_TRIGGER) {
-                    startHoldCheck('correct');
+                    doAnswer(true);
                 } else if (z < -THRESHOLD_TRIGGER) {
-                    startHoldCheck('pass');
+                    doAnswer(false);
                 }
             } 
-            // 3. ホールドチェック：一瞬の揺れか、意図的な操作か
-            else if (state.motionState === 'holding') {
-                // 閾値を下回ったらキャンセル
-                if ((state.holdDirection === 'correct' && z < THRESHOLD_TRIGGER) ||
-                    (state.holdDirection === 'pass' && z > -THRESHOLD_TRIGGER)) {
-                    state.motionState = 'neutral';
-                } else {
-                    // 0.2秒キープしたら確定
-                    if (now - state.holdStartTime > 200) {
-                        doAnswer(state.holdDirection === 'correct');
-                    }
-                }
-            }
-            // 4. トリガー済み：垂直に戻るのを待つ
+            // 3. トリガー済み：戻り待ち
             else if (state.motionState === 'triggered') {
-                // 垂直付近に戻ったらニュートラルへ
                 if (z > -THRESHOLD_RESET && z < THRESHOLD_RESET) {
                     state.motionState = 'neutral';
                 }
             }
         }
 
-        function startHoldCheck(direction) {
-            state.motionState = 'holding';
-            state.holdDirection = direction;
-            state.holdStartTime = Date.now();
-        }
-
         function doAnswer(isCorrect) {
-            // 判定確定
+            // クールダウン設定 (0.8秒待機)
             state.motionState = 'cooldown';
-            state.cooldownEndTime = Date.now() + 1000; // 1秒間フリーズ
+            state.cooldownEndTime = Date.now() + 800; 
 
             const item = state.questions[state.qIndex];
             
@@ -840,19 +866,37 @@
             $('feedback-overlay').classList.remove('show');
         }
 
-        // --- ゲーム終了 ---
+        // --- ゲーム終了処理 ---
         function finishGame() {
             state.isPlaying = false;
             clearInterval(gameInterval);
             window.removeEventListener('devicemotion', handleMotion);
 
+            // 録画停止 & カメラ停止
+            if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+                state.mediaRecorder.onstop = () => {
+                    const blob = new Blob(state.recordedChunks, { type: 'video/webm' });
+                    state.videoBlob = blob;
+                    
+                    const videoURL = URL.createObjectURL(blob);
+                    $('recorded-video').src = videoURL;
+                    $('video-section').style.display = 'block';
+                };
+                state.mediaRecorder.stop();
+            } else {
+                $('video-section').style.display = 'none';
+            }
+            
+            // カメラストリーム停止
             const vid = $('camera-feed');
             if (vid.srcObject) {
+                // Recorder停止を待つために少し遅らせても良いが、srcObjectは切ってもBlob生成はされることが多い
                 vid.srcObject.getTracks().forEach(t => t.stop());
             }
 
             playTone(600, 'sawtooth', 0.5); 
             
+            // 結果表示
             $('result-number').innerText = state.correct.length;
             
             $('result-list-correct').innerHTML = state.correct.length > 0 
@@ -874,6 +918,24 @@
             switchScreen('result');
         }
 
+        function downloadVideo() {
+            if (!state.videoBlob) return;
+            const url = URL.createObjectURL(state.videoBlob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            // 日付ファイル名
+            const d = new Date();
+            const filename = `gesture_game_${d.getFullYear()}${d.getMonth()+1}${d.getDate()}_${d.getHours()}${d.getMinutes()}.webm`;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 100);
+        }
+
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playTone(freq, type, dur) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -887,12 +949,6 @@
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
             osc.stop(audioCtx.currentTime + dur);
         }
-        
-        function toggleDebug() {
-            const d = $('sensor-debug');
-            d.style.display = d.style.display === 'block' ? 'none' : 'block';
-        }
-
     </script>
 </body>
 </html>
