@@ -3,1449 +3,830 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ジェスチャーゲーム</title>
+    
+    <!-- PWA用設定（ホーム画面に追加した時にアプリとして振る舞う） -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+
+    <title>ジェスチャーゲーム改</title>
     <style>
+        :root {
+            --bg: #121212;
+            --text: #ffffff;
+            --accent: #0A84FF;
+            --success: #30D158;
+            --pass: #FF9F0A;
+            --danger: #FF453A;
+            --card-bg: #1C1C1E;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
-        }
-
-        :root {
-            --bg-primary: #F2F2F7;
-            --bg-secondary: #FFFFFF;
-            --bg-tertiary: #E5E5EA;
-            --text-primary: #000000;
-            --text-secondary: #3C3C43;
-            --text-tertiary: #8E8E93;
-            --accent: #007AFF;
-            --success: #34C759;
-            --warning: #FF9500;
-            --danger: #FF3B30;
-            --separator: rgba(60, 60, 67, 0.1);
-        }
-
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-primary: #000000;
-                --bg-secondary: #1C1C1E;
-                --bg-tertiary: #2C2C2E;
-                --text-primary: #FFFFFF;
-                --text-secondary: #EBEBF5;
-                --text-tertiary: #8E8E93;
-                --separator: rgba(84, 84, 88, 0.65);
-            }
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            /* overflow: hidden; を削除し、画面全体でのスクロール挙動を修正 */
-            overscroll-behavior-y: none; /* バウンススクロール防止 */
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro JP", "Hiragino Kaku Gothic ProN", sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
             width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            position: fixed; /* 全体を固定してコンテンツのみスクロールさせるモダンな手法 */
-            inset: 0;
-        }
-
-        .rotate-message {
-            display: none;
+            height: 100dvh; /* 動的なビューポート高さに対応 */
+            overflow: hidden; /* 全体スクロール禁止 */
             position: fixed;
             inset: 0;
-            background: var(--bg-primary);
-            z-index: 9999;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
         }
 
-        .rotate-icon {
-            font-size: 64px;
-            animation: rotate-phone 2s ease-in-out infinite;
-        }
-
-        @keyframes rotate-phone {
-            0%, 100% { transform: rotate(0deg); }
-            50% { transform: rotate(90deg); }
-        }
-
-        .rotate-text {
-            font-size: 18px;
-            color: var(--text-secondary);
-        }
-
-        @media (orientation: portrait) {
-            .rotate-message { display: flex; }
-            .app-container { display: none !important; }
-        }
-
-        .app-container {
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            height: 100%;
-        }
-
+        /* 共通レイアウト */
         .screen {
+            position: absolute;
+            inset: 0;
             display: none;
             flex-direction: column;
-            width: 100%;
-            height: 100%;
-            padding: 16px;
-            padding-left: max(16px, env(safe-area-inset-left));
-            padding-right: max(16px, env(safe-area-inset-right));
-            overflow-y: auto; /* 各画面ごとにスクロールを許可 */
-            -webkit-overflow-scrolling: touch;
+            background: var(--bg);
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            z-index: 10;
         }
 
         .screen.active { display: flex; }
 
-        /* ゲーム画面などはスクロールさせない */
-        #game-screen, #countdown-screen {
-            overflow: hidden;
-        }
-
-        .loading-screen {
-            position: fixed;
-            inset: 0;
-            background: var(--bg-primary);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            gap: 16px;
-        }
-
-        .loading-screen.hidden { display: none; }
-
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--bg-tertiary);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        .loading-text {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        #home-screen {
-            /* 中央寄せにしつつ、コンテンツが多い場合は上から表示してスクロール可能にする */
-            justify-content: flex-start; 
-            align-items: center;
-            gap: 30px;
-            padding-top: max(40px, env(safe-area-inset-top));
-            padding-bottom: max(40px, env(safe-area-inset-bottom));
-        }
-        
-        /* 画面が大きい場合は中央寄せにするためのラッパー */
-        .home-content-wrapper {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100%; /* コンテンツが少なくても中央に来るように */
-            gap: 30px;
-        }
-
-        .app-title {
-            font-size: 32px;
-            font-weight: 700;
-            text-align: center;
-        }
-
-        .app-subtitle {
-            font-size: 15px;
-            color: var(--text-tertiary);
-            margin-top: 6px;
-        }
-
-        .menu-container {
-            width: 100%;
-            max-width: 500px;
-            /* 下部に余裕を持たせる */
-            margin-bottom: 20px;
-        }
-
-        .menu-section {
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 16px;
-        }
-
-        .menu-section-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-tertiary);
-            text-transform: uppercase;
-            padding: 8px 16px;
-            margin-top: 12px;
-        }
-
-        .menu-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 11px 16px;
-            border-bottom: 0.5px solid var(--separator);
-            cursor: pointer;
-            transition: background-color 0.15s;
-        }
-
-        .menu-item:last-child { border-bottom: none; }
-        .menu-item:active { background-color: var(--bg-tertiary); }
-
-        .menu-item-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .menu-item-icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-        }
-
-        .menu-item-label { font-size: 16px; }
-
-        .menu-item-value {
-            font-size: 16px;
-            color: var(--text-tertiary);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .menu-item-value::after {
-            content: '›';
-            font-size: 18px;
-            opacity: 0.5;
-        }
-
-        .toggle-switch {
-            position: relative;
-            width: 51px;
-            height: 31px;
-            background: var(--bg-tertiary);
-            border-radius: 16px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        .toggle-switch.active { background: var(--success); }
-
-        .toggle-switch::after {
-            content: '';
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 27px;
-            height: 27px;
-            background: white;
-            border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            transition: transform 0.3s;
-        }
-
-        .toggle-switch.active::after { transform: translateX(20px); }
-
-        .start-button {
-            width: 100%;
-            padding: 14px;
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 17px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.15s, transform 0.1s;
-        }
-
-        .start-button:active {
-            opacity: 0.8;
-            transform: scale(0.98);
-        }
-
-        .start-button:disabled {
-            background: var(--text-tertiary);
-            cursor: not-allowed;
-        }
-
-        .nav-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 4px;
-            min-height: 44px;
-            flex-shrink: 0; /* ヘッダーが縮まないように */
-        }
-
-        .nav-button {
-            background: none;
-            border: none;
-            color: var(--accent);
-            font-size: 16px;
-            cursor: pointer;
-            padding: 8px;
-            min-width: 80px;
-        }
-
-        .nav-title {
-            font-size: 17px;
-            font-weight: 600;
-        }
-
-        .selection-list {
+        /* コンテンツエリア（スクロール可能） */
+        .scrollable-content {
             flex: 1;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
-            padding-bottom: 20px;
-        }
-
-        .selection-item {
+            padding: 20px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: var(--bg-secondary);
-            margin-bottom: 1px;
-            cursor: pointer;
         }
 
-        .selection-item:first-child { border-radius: 12px 12px 0 0; }
-        .selection-item:last-child { border-radius: 0 0 12px 12px; margin-bottom: 0; }
-        .selection-item:only-child { border-radius: 12px; }
-        .selection-item:active { background-color: var(--bg-tertiary); }
-        .selection-item.selected { color: var(--accent); }
-
-        .checkmark {
-            color: var(--accent);
-            font-weight: 600;
-            opacity: 0;
-        }
-
-        .selection-item.selected .checkmark { opacity: 1; }
-
-        .time-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            padding: 12px;
-        }
-
-        .time-option {
-            flex: 1;
-            min-width: calc(33.333% - 6px);
-            padding: 12px;
-            background: var(--bg-tertiary);
-            border: 2px solid transparent;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 500;
-            color: var(--text-primary);
-            cursor: pointer;
+        /* ホーム画面 */
+        .title-area {
             text-align: center;
+            margin-top: 40px;
+            margin-bottom: 40px;
+        }
+        .title-area h1 { font-size: 32px; margin-bottom: 10px; }
+        .title-area p { color: #888; font-size: 14px; }
+
+        .menu-card {
+            width: 100%;
+            max-width: 400px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
         }
 
-        .time-option.selected {
-            border-color: var(--accent);
-            background: rgba(0, 122, 255, 0.1);
-            color: var(--accent);
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
         }
+        .setting-row:last-child { border-bottom: none; }
+        
+        .setting-label { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: bold; }
+        .setting-value { color: var(--accent); font-size: 16px; display: flex; align-items: center; gap: 5px; }
 
-        /* ゲーム画面 */
+        .btn-primary {
+            width: 100%;
+            max-width: 400px;
+            padding: 16px;
+            background: var(--accent);
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-primary:active { transform: scale(0.96); }
+        .btn-primary:disabled { background: #555; color: #888; }
+
+        /* リスト選択画面 */
+        .list-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .list-item {
+            background: var(--card-bg);
+            padding: 16px;
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .list-item:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+        .list-item:last-child { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+        .list-item.selected { color: var(--accent); }
+
+        /* ゲーム画面（全画面、スクロールなし） */
         #game-screen {
-            padding: 0;
-            position: relative;
+            background: #000;
+            overflow: hidden;
+            touch-action: none;
         }
 
-        .game-camera-bg {
+        .camera-layer {
             position: absolute;
             inset: 0;
             z-index: 0;
-            display: none;
-            background: #000;
+            opacity: 0.3;
         }
-
-        .game-camera-bg video {
+        .camera-layer video {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            opacity: 0.25;
             transform: scaleX(-1);
         }
 
-        .game-content {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: space-between;
-            width: 100%;
-            height: 100%;
-            padding: 16px 24px;
-        }
-
-        .game-sidebar {
+        .game-ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
             display: flex;
             flex-direction: column;
+            padding: 10px;
+            padding-left: max(20px, env(safe-area-inset-left));
+            padding-right: max(20px, env(safe-area-inset-right));
+        }
+
+        .game-header {
+            display: flex;
             justify-content: space-between;
-            height: 100%;
-            min-width: 100px;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
+        
+        .timer.urgent { color: var(--danger); animation: pulse 0.5s infinite; }
 
-        .timer {
-            font-size: 42px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .timer.warning {
-            color: var(--danger);
-            animation: timer-pulse 0.5s ease-in-out infinite;
-        }
-
-        @keyframes timer-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .score-display {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text-secondary);
-        }
-
-        .question-container {
+        .question-box {
             flex: 1;
             display: flex;
-            align-items: center;
             justify-content: center;
-            /* 長いテキストがはみ出さないように */
-            padding: 0 20px;
+            align-items: center;
+            padding: 20px;
         }
 
         .question-text {
-            font-size: 80px;
-            font-weight: 700;
+            font-size: clamp(40px, 12vw, 100px);
+            font-weight: 800;
             text-align: center;
-            /* 文字サイズ調整（clamp使用） */
-            font-size: clamp(40px, 10vw, 90px);
+            line-height: 1.1;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.5);
             word-break: keep-all;
-            line-height: 1.2;
-        }
-
-        .instruction-sidebar {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            justify-content: flex-end;
-            height: 100%;
-            min-width: 120px;
-        }
-
-        .instruction-item {
-            font-size: 13px;
-            color: var(--text-tertiary);
-            margin-bottom: 8px;
-        }
-
-        .rec-indicator {
-            display: none;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--danger);
-            margin-bottom: auto;
-        }
-
-        .rec-indicator.show { display: flex; }
-
-        .rec-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--danger);
-            border-radius: 50%;
-            animation: rec-blink 1s infinite;
-        }
-
-        @keyframes rec-blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
         }
 
         .feedback-overlay {
             position: absolute;
             inset: 0;
+            z-index: 20;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.15s;
-            z-index: 100;
-        }
-
-        .feedback-overlay.show { opacity: 1; }
-        .feedback-overlay.correct { background: var(--success); }
-        .feedback-overlay.pass { background: var(--warning); }
-
-        .feedback-icon { font-size: 72px; margin-bottom: 12px; }
-        .feedback-text { font-size: 32px; font-weight: 700; color: white; }
-
-        #countdown-screen {
-            justify-content: center;
-            align-items: center;
-        }
-
-        .countdown-number {
-            font-size: 100px;
-            font-weight: 700;
-            color: var(--accent);
-            animation: pulse 1s ease-in-out infinite;
-        }
-
-        .countdown-instruction {
-            margin-top: 24px;
-            font-size: 18px;
-            color: var(--text-secondary);
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); opacity: 0.8; }
-        }
-
-        /* 結果画面 */
-        #result-screen {
-            /* 横並びから縦並びにレスポンシブ対応しやすいように変更 */
-            flex-direction: row;
-            gap: 24px;
-        }
-
-        @media (max-width: 600px) and (orientation: portrait) {
-             #result-screen { flex-direction: column; }
-        }
-
-        .result-left {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-width: 200px;
-        }
-
-        .result-title {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .result-score {
-            font-size: 56px;
-            font-weight: 700;
-            color: var(--accent);
-        }
-
-        .result-score span {
-            font-size: 20px;
-            color: var(--text-tertiary);
-        }
-
-        .result-stats {
-            display: flex;
-            gap: 24px;
-            margin-top: 12px;
-        }
-
-        .stat-value {
-            font-size: 22px;
-            font-weight: 600;
-        }
-
-        .stat-value.correct { color: var(--success); }
-        .stat-value.pass { color: var(--warning); }
-
-        .stat-label {
-            font-size: 12px;
-            color: var(--text-tertiary);
-            margin-top: 2px;
-        }
-
-        .result-actions {
-            margin-top: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .result-button {
-            padding: 12px 20px;
-            background: var(--accent);
             color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
+            font-weight: 900;
+            font-size: 80px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        .feedback-overlay.correct { background: rgba(48, 209, 88, 0.9); }
+        .feedback-overlay.pass { background: rgba(255, 159, 10, 0.9); }
+        .feedback-overlay.show { opacity: 1; }
+
+        /* デバッグ表示 */
+        #debug-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 10px;
+            color: lime;
+            font-family: monospace;
+            z-index: 100;
+            background: rgba(0,0,0,0.5);
+            padding: 4px;
+            pointer-events: none;
+            display: none; /* デフォルト非表示 */
         }
 
-        .result-button:active { opacity: 0.8; }
-
-        .result-button.secondary {
-            background: var(--bg-secondary);
-            color: var(--accent);
-        }
-
-        .result-lists {
-            flex: 1;
-            display: flex;
-            gap: 16px;
-            overflow: hidden;
-            /* モバイル対応 */
-            min-height: 200px;
-        }
-
-        .result-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .result-section-title {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-tertiary);
-            text-transform: uppercase;
-            padding: 6px 12px;
-        }
-
-        .result-list {
-            flex: 1;
-            background: var(--bg-secondary);
-            border-radius: 10px;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .result-item {
-            padding: 10px 14px;
-            border-bottom: 0.5px solid var(--separator);
-            font-size: 15px;
-        }
-
-        .result-item:last-child { border-bottom: none; }
-
-        .empty-list {
-            padding: 14px;
-            color: var(--text-tertiary);
-            font-size: 14px;
-        }
-
-        /* Video Preview */
-        .video-preview-overlay {
+        /* 縦画面警告 */
+        #rotate-warning {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: var(--bg);
+            z-index: 9999;
             display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-
-        .video-preview-overlay.show { display: flex; }
-
-        .video-preview-container {
-            background: var(--bg-secondary);
-            border-radius: 14px;
-            overflow: hidden;
-            max-width: 90%;
-            max-height: 90%;
-            display: flex;
             flex-direction: column;
-        }
-
-        .video-preview-container video {
-            max-width: 100%;
-            max-height: 60vh;
-            display: block;
-            background: black;
-        }
-
-        .video-preview-actions {
-            display: flex;
-            padding: 12px;
-            gap: 10px;
-        }
-
-        .video-preview-actions button {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .video-save-btn { background: var(--accent); color: white; }
-        .video-close-btn { background: var(--bg-tertiary); color: var(--text-primary); }
-
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.4);
-            display: none;
-            align-items: center;
             justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-
-        .modal-overlay.show { display: flex; }
-
-        .modal {
-            background: var(--bg-secondary);
-            border-radius: 14px;
-            width: 100%;
-            max-width: 300px;
-            overflow: hidden;
-        }
-
-        .modal-content {
-            padding: 20px;
+            align-items: center;
             text-align: center;
         }
-
-        .modal-icon { font-size: 42px; margin-bottom: 12px; }
-        .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
-        .modal-text { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
-
-        .modal-actions {
-            display: flex;
-            border-top: 0.5px solid var(--separator);
+        @media (orientation: portrait) {
+            #rotate-warning { display: flex; }
         }
+        .rotate-icon { font-size: 50px; margin-bottom: 20px; animation: rotate 2s infinite; }
+        @keyframes rotate { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } }
 
-        .modal-button {
-            flex: 1;
-            padding: 12px;
-            background: none;
-            border: none;
-            font-size: 17px;
-            color: var(--accent);
-            cursor: pointer;
+        /* カウントダウン */
+        #countdown-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 50;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
         }
+        .count-num { font-size: 150px; font-weight: bold; color: var(--accent); }
+        .count-sub { font-size: 20px; margin-top: 20px; color: #888; }
 
-        .modal-button:active { background: var(--bg-tertiary); }
-        .modal-button.primary { font-weight: 600; }
     </style>
 </head>
 <body>
-    <div class="rotate-message">
+
+    <!-- 縦画面時の警告 -->
+    <div id="rotate-warning">
         <div class="rotate-icon">📱</div>
-        <p class="rotate-text">スマホを横向きにしてください</p>
+        <h2>スマホを横向きにしてください</h2>
+        <p style="margin-top:10px; color:#888;">このゲームは横画面専用です</p>
     </div>
 
-    <div class="loading-screen" id="loading-screen">
-        <div class="loading-spinner"></div>
-        <p class="loading-text">読み込み中...</p>
+    <!-- センサーデバッグ用 -->
+    <div id="debug-info">Sensor Init...</div>
+
+    <!-- ホーム画面 -->
+    <div id="screen-home" class="screen active">
+        <div class="scrollable-content">
+            <div class="title-area">
+                <h1>🎭 ジェスチャーゲーム</h1>
+                <p>スマホをおでこに当ててプレイ！</p>
+            </div>
+
+            <div class="menu-card">
+                <div class="setting-row" id="btn-genre">
+                    <span class="setting-label">📁 ジャンル</span>
+                    <span class="setting-value" id="disp-genre">選択 ></span>
+                </div>
+                <div class="setting-row" id="btn-time">
+                    <span class="setting-label">⏱️ 制限時間</span>
+                    <span class="setting-value" id="disp-time">60秒 ></span>
+                </div>
+                <div class="setting-row" id="btn-camera" style="border:none;">
+                    <span class="setting-label">📹 録画</span>
+                    <label style="position:relative; width:50px; height:30px; background:#333; border-radius:15px; cursor:pointer;">
+                        <input type="checkbox" id="chk-camera" style="opacity:0;">
+                        <div id="toggle-circle" style="position:absolute; top:2px; left:2px; width:26px; height:26px; background:white; border-radius:50%; transition:0.3s;"></div>
+                    </label>
+                </div>
+            </div>
+
+            <button id="btn-start" class="btn-primary" disabled>ゲームスタート</button>
+            <p style="margin-top:20px; font-size:12px; color:#555;" id="debug-trigger">ver 2.0 (Sensor Fix)</p>
+        </div>
     </div>
 
-    <div class="app-container">
-        <!-- 修正: home-content-wrapper を追加してコンテンツのセンタリングとスクロールを両立 -->
-        <div id="home-screen" class="screen active">
-            <div class="home-content-wrapper">
-                <div>
-                    <h1 class="app-title">🎭 ジェスチャーゲーム</h1>
-                    <p class="app-subtitle">おでこにスマホを当てて遊ぼう！</p>
-                </div>
-                <div class="menu-container">
-                    <p class="menu-section-title">ゲーム設定</p>
-                    <div class="menu-section">
-                        <div class="menu-item" id="genre-select">
-                            <div class="menu-item-left">
-                                <div class="menu-item-icon" style="background:#FF9500;">📁</div>
-                                <span class="menu-item-label">ジャンル</span>
-                            </div>
-                            <span class="menu-item-value" id="selected-genre">選択してください</span>
-                        </div>
-                        <div class="menu-item" id="time-select">
-                            <div class="menu-item-left">
-                                <div class="menu-item-icon" style="background:#34C759;">⏱️</div>
-                                <span class="menu-item-label">制限時間</span>
-                            </div>
-                            <span class="menu-item-value" id="selected-time">1分</span>
-                        </div>
-                        <div class="menu-item">
-                            <div class="menu-item-left">
-                                <div class="menu-item-icon" style="background:#FF3B30;">🎥</div>
-                                <span class="menu-item-label">録画する</span>
-                            </div>
-                            <div class="toggle-switch" id="camera-toggle"></div>
-                        </div>
-                    </div>
-                    <button class="start-button" id="start-btn" disabled>ゲームスタート</button>
-                </div>
+    <!-- ジャンル選択画面 -->
+    <div id="screen-genre" class="screen">
+        <div style="padding: 10px; display:flex; align-items:center;">
+            <button class="setting-value" id="back-genre" style="background:none; border:none; font-size:16px;">← 戻る</button>
+            <span style="flex:1; text-align:center; font-weight:bold;">ジャンル選択</span>
+            <span style="width:60px;"></span>
+        </div>
+        <div class="scrollable-content">
+            <div id="list-genre" class="list-container"></div>
+        </div>
+    </div>
+
+    <!-- 時間選択画面 -->
+    <div id="screen-time" class="screen">
+        <div style="padding: 10px; display:flex; align-items:center;">
+            <button class="setting-value" id="back-time" style="background:none; border:none; font-size:16px;">← 戻る</button>
+            <span style="flex:1; text-align:center; font-weight:bold;">時間選択</span>
+            <span style="width:60px;"></span>
+        </div>
+        <div class="scrollable-content">
+            <div id="list-time" class="list-container"></div>
+        </div>
+    </div>
+
+    <!-- カウントダウン -->
+    <div id="countdown-overlay">
+        <div class="count-num" id="count-val">3</div>
+        <p class="count-sub">スマホをおでこに当ててください</p>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="game-screen" class="screen">
+        <div class="camera-layer">
+            <video id="camera-feed" autoplay playsinline muted></video>
+        </div>
+        
+        <div class="game-ui-layer">
+            <div class="game-header">
+                <div class="timer" id="game-timer">60</div>
+                <div class="score">正解: <span id="game-score">0</span></div>
+            </div>
+            
+            <div class="question-box">
+                <div class="question-text" id="game-question">準備中...</div>
+            </div>
+
+            <div style="text-align:right; font-size:14px; opacity:0.7;">
+                <div>下へ傾けて正解 ⭕</div>
+                <div>上へ傾けてパス ⏭️</div>
             </div>
         </div>
 
-        <div id="genre-screen" class="screen">
-            <div class="nav-bar">
-                <button class="nav-button" id="genre-back">キャンセル</button>
-                <span class="nav-title">ジャンル選択</span>
-                <span class="nav-button"></span> <!-- レイアウト調整用のダミー -->
-            </div>
-            <div class="selection-list" id="genre-list"></div>
+        <div id="feedback-overlay" class="feedback-overlay">
+            <div id="feedback-icon">⭕</div>
+            <div id="feedback-text">正解！</div>
         </div>
+    </div>
 
-        <div id="time-screen" class="screen">
-            <div class="nav-bar">
-                <button class="nav-button" id="time-back">キャンセル</button>
-                <span class="nav-title">制限時間</span>
-                <span class="nav-button"></span>
+    <!-- 結果画面 -->
+    <div id="screen-result" class="screen">
+        <div class="scrollable-content">
+            <h2>結果発表</h2>
+            <div style="font-size:60px; font-weight:bold; color:var(--accent); margin: 20px 0;">
+                <span id="res-score">0</span><span style="font-size:20px; color:#fff;"> 問正解</span>
             </div>
-            <div class="menu-section" style="margin:16px 0;">
-                <div class="time-options" id="time-options"></div>
-            </div>
-        </div>
 
-        <div id="countdown-screen" class="screen">
-            <div class="countdown-number" id="countdown-number">3</div>
-            <p class="countdown-instruction">スマホをおでこに当てて準備！</p>
-        </div>
+            <div style="display:flex; gap:20px; width:100%; max-width:400px; margin-bottom:20px;">
+                <button id="btn-home" class="btn-primary" style="background:#333;">ホームへ</button>
+            </div>
 
-        <div id="game-screen" class="screen">
-            <div class="game-camera-bg" id="game-camera-bg">
-                <video id="game-camera-video" autoplay playsinline muted></video>
-            </div>
-            <div class="game-content">
-                <div class="game-sidebar">
-                    <div class="timer" id="timer">1:00</div>
-                    <div class="score-display"><span id="current-score">0</span>問正解</div>
-                </div>
-                <div class="question-container">
-                    <div class="question-text" id="question"></div>
-                </div>
-                <div class="instruction-sidebar">
-                    <div class="rec-indicator" id="rec-indicator">
-                        <div class="rec-dot"></div>
-                        <span>REC</span>
-                    </div>
-                    <div class="instruction-item">⬇️ 下 → 正解</div>
-                    <div class="instruction-item">⬆️ 上 → パス</div>
-                </div>
-            </div>
-            <div class="feedback-overlay" id="feedback">
-                <div class="feedback-icon" id="feedback-icon"></div>
-                <div class="feedback-text" id="feedback-text"></div>
-            </div>
-        </div>
-
-        <div id="result-screen" class="screen">
-            <div class="result-left">
-                <div>
-                    <h2 class="result-title">結果発表</h2>
-                    <div class="result-score"><span id="final-score">0</span><span>問正解</span></div>
-                    <div class="result-stats">
-                        <div class="stat-item">
-                            <div class="stat-value correct" id="correct-count">0</div>
-                            <div class="stat-label">正解</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value pass" id="pass-count">0</div>
-                            <div class="stat-label">パス</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="result-actions">
-                    <button class="result-button" id="home-btn">ホームに戻る</button>
-                    <button class="result-button secondary" id="video-btn" style="display:none;">録画を見る</button>
-                </div>
-            </div>
-            <div class="result-lists">
-                <div class="result-section">
-                    <p class="result-section-title">✅ 正解</p>
-                    <div class="result-list" id="correct-list"></div>
-                </div>
-                <div class="result-section">
-                    <p class="result-section-title">⏭️ パス</p>
-                    <div class="result-list" id="pass-list"></div>
-                </div>
+            <div class="list-container" style="width:100%;">
+                <h3 style="margin-bottom:10px; font-size:16px; color:#888;">正解したお題</h3>
+                <div id="res-list-correct"></div>
+                
+                <h3 style="margin:20px 0 10px; font-size:16px; color:#888;">パスしたお題</h3>
+                <div id="res-list-pass"></div>
             </div>
         </div>
     </div>
 
-    <div class="video-preview-overlay" id="video-preview">
-        <div class="video-preview-container">
-            <video id="recorded-video" controls playsinline></video>
-            <div class="video-preview-actions">
-                <button class="video-close-btn" id="video-close-btn">閉じる</button>
-                <button class="video-save-btn" id="video-save-btn">保存する</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="permission-modal">
-        <div class="modal">
-            <div class="modal-content">
-                <div class="modal-icon">📱</div>
-                <h3 class="modal-title">センサーへのアクセス</h3>
-                <p class="modal-text">傾きを検出するために許可が必要です。</p>
-            </div>
-            <div class="modal-actions">
-                <button class="modal-button primary" id="permission-btn">許可する</button>
-            </div>
+    <!-- 許可モーダル -->
+    <div id="modal-perm" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:9999; display:none; justify-content:center; align-items:center;">
+        <div style="background:#1C1C1E; padding:30px; border-radius:20px; text-align:center; max-width:300px;">
+            <div style="font-size:40px; margin-bottom:10px;">📱</div>
+            <h3 style="margin-bottom:10px;">センサーの許可</h3>
+            <p style="font-size:14px; color:#aaa; margin-bottom:20px;">ゲームをプレイするには傾きセンサーへのアクセス許可が必要です。</p>
+            <button id="btn-perm" class="btn-primary">許可する</button>
         </div>
     </div>
 
     <script>
-    const GENRES_INDEX = 'data/genres.json';
+        // --- 設定データ ---
+        const GENRES_URL = 'data/genres.json';
+        
+        // --- アプリの状態 ---
+        const state = {
+            genres: [],
+            selectedGenre: null,
+            time: 60,
+            useCamera: false,
+            
+            // ゲーム内状態
+            questions: [],
+            qIndex: 0,
+            correctItems: [],
+            passItems: [],
+            timer: null,
+            timeLeft: 0,
+            isPlaying: false,
+            isCooldown: false,
+            
+            // センサー関連
+            baseAngle: null, // 基準角度（おでこに当てた時の角度）
+            lastAngle: 0,
+            threshold: 25,   // 判定閾値（度）
+            orientationPermitted: false
+        };
 
-    class SoundManager {
-        constructor() { this.ctx = null; }
-        
-        init() {
-            if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            if (this.ctx.state === 'suspended') this.ctx.resume();
-        }
-        
-        play(freq, dur, type = 'sine', vol = 0.3) {
-            if (!this.ctx) return;
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-            osc.frequency.value = freq;
+        // --- DOM要素 ---
+        const els = {
+            screens: {
+                home: document.getElementById('screen-home'),
+                genre: document.getElementById('screen-genre'),
+                time: document.getElementById('screen-time'),
+                game: document.getElementById('game-screen'),
+                result: document.getElementById('screen-result')
+            },
+            home: {
+                genre: document.getElementById('disp-genre'),
+                time: document.getElementById('disp-time'),
+                cameraChk: document.getElementById('chk-camera'),
+                toggle: document.getElementById('toggle-circle'),
+                startBtn: document.getElementById('btn-start')
+            },
+            lists: {
+                genre: document.getElementById('list-genre'),
+                time: document.getElementById('list-time'),
+                resCorrect: document.getElementById('res-list-correct'),
+                resPass: document.getElementById('res-list-pass')
+            },
+            game: {
+                timer: document.getElementById('game-timer'),
+                score: document.getElementById('game-score'),
+                question: document.getElementById('game-question'),
+                video: document.getElementById('camera-feed'),
+                feedback: document.getElementById('feedback-overlay'),
+                fbIcon: document.getElementById('feedback-icon'),
+                fbText: document.getElementById('feedback-text')
+            },
+            countdown: document.getElementById('countdown-overlay'),
+            countVal: document.getElementById('count-val'),
+            debug: document.getElementById('debug-info'),
+            permModal: document.getElementById('modal-perm')
+        };
+
+        // --- 音声管理 ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
             osc.type = type;
-            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
             osc.start();
-            osc.stop(this.ctx.currentTime + dur);
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            osc.stop(audioCtx.currentTime + duration);
         }
-        
-        correct() {
-            this.play(523, 0.1); 
-            setTimeout(() => this.play(659, 0.1), 80);
-            setTimeout(() => this.play(784, 0.2), 160);
-        }
-        
-        pass() {
-            this.play(392, 0.15, 'triangle');
-            setTimeout(() => this.play(349, 0.15, 'triangle'), 100);
-        }
-        
-        countdown() { this.play(440, 0.1); }
-        
-        start() {
-            this.play(523, 0.1);
-            setTimeout(() => this.play(659, 0.1), 100);
-            setTimeout(() => this.play(784, 0.1), 200);
-            setTimeout(() => this.play(1047, 0.3), 300);
-        }
-        
-        end() {
-            [523, 587, 659, 784, 659, 784, 1047].forEach((f, i) => {
-                setTimeout(() => this.play(f, 0.2), i * 120);
-            });
-        }
-        
-        warning() { this.play(880, 0.1, 'square', 0.2); }
-    }
 
-    class CameraManager {
-        constructor() {
-            this.stream = null;
-            this.recorder = null;
-            this.chunks = [];
-            this.blob = null;
-        }
-        
-        async start(video) {
+        const sounds = {
+            ok: () => { playTone(880, 'sine', 0.1); setTimeout(()=>playTone(1760, 'sine', 0.2), 100); },
+            pass: () => { playTone(300, 'triangle', 0.3); },
+            count: () => { playTone(600, 'sine', 0.1); },
+            start: () => { playTone(1200, 'square', 0.5); },
+            end: () => { playTone(200, 'sawtooth', 0.8); }
+        };
+
+        // --- 初期化 ---
+        async function init() {
             try {
-                this.stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-                    audio: false
-                });
-                video.srcObject = this.stream;
-                await video.play();
-                return true;
-            } catch (e) {
-                console.error('Camera error:', e);
-                return false;
+                // ジャンル読み込み
+                const res = await fetch(GENRES_URL);
+                const files = await res.json();
+                state.genres = await Promise.all(files.map(async f => {
+                    const r = await fetch(`data/${f}`);
+                    return await r.json();
+                }));
+                
+                renderGenreList();
+                renderTimeList();
+                
+            } catch(e) {
+                alert('データ読み込みエラー: ' + e);
             }
-        }
-        
-        startRecording() {
-            if (!this.stream) return false;
-            this.chunks = [];
-            try {
-                this.recorder = new MediaRecorder(this.stream, { mimeType: 'video/webm' });
-            } catch {
+
+            // イベントリスナー設定
+            document.getElementById('btn-genre').onclick = () => changeScreen('genre');
+            document.getElementById('btn-time').onclick = () => changeScreen('time');
+            document.getElementById('back-genre').onclick = () => changeScreen('home');
+            document.getElementById('back-time').onclick = () => changeScreen('home');
+            
+            document.getElementById('btn-camera').onclick = (e) => {
+                if(e.target.tagName === 'INPUT') return; // バブリング防止
+                els.home.cameraChk.checked = !els.home.cameraChk.checked;
+                updateCameraToggle();
+            };
+            els.home.cameraChk.onchange = updateCameraToggle;
+            
+            els.home.startBtn.onclick = tryStartGame;
+            document.getElementById('btn-home').onclick = () => changeScreen('home');
+            
+            // 許可ボタン
+            document.getElementById('btn-perm').onclick = async () => {
                 try {
-                    this.recorder = new MediaRecorder(this.stream, { mimeType: 'video/mp4' });
-                } catch {
-                    this.recorder = new MediaRecorder(this.stream);
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') {
+                        state.orientationPermitted = true;
+                        els.permModal.style.display = 'none';
+                        startGameSequence();
+                    } else {
+                        alert('センサーの使用が拒否されました。設定を確認してください。');
+                    }
+                } catch(e) {
+                    console.error(e);
+                    // Android等はここに来る
+                    state.orientationPermitted = true;
+                    els.permModal.style.display = 'none';
+                    startGameSequence();
                 }
-            }
-            this.recorder.ondataavailable = e => { if (e.data.size > 0) this.chunks.push(e.data); };
-            this.recorder.start(100);
-            return true;
+            };
+            
+            // デバッグ表示トグル
+            let debugClicks = 0;
+            document.getElementById('debug-trigger').onclick = () => {
+                debugClicks++;
+                if(debugClicks > 5) els.debug.style.display = 'block';
+            };
         }
-        
-        async stopRecording() {
-            return new Promise(resolve => {
-                if (!this.recorder || this.recorder.state === 'inactive') {
-                    resolve(null);
-                    return;
-                }
-                this.recorder.onstop = () => {
-                    this.blob = new Blob(this.chunks, { type: this.recorder.mimeType || 'video/webm' });
-                    resolve(this.blob);
-                };
-                this.recorder.stop();
-            });
-        }
-        
-        stop() {
-            if (this.stream) {
-                this.stream.getTracks().forEach(t => t.stop());
-                this.stream = null;
-            }
-        }
-        
-        getBlob() { return this.blob; }
-        
-        download(name = 'gesture-game.webm') {
-            if (!this.blob) return;
-            const url = URL.createObjectURL(this.blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = name;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-    }
 
-    class Game {
-        constructor() {
-            this.sound = new SoundManager();
-            this.camera = new CameraManager();
-            this.genres = [];
-            this.selectedGenre = null;
-            this.selectedTime = 60;
-            this.timeOpts = [30, 60, 90, 120, 180];
-            this.questions = [];
-            this.qIndex = 0;
-            this.correct = [];
-            this.passed = [];
-            this.timeLeft = 0;
-            this.timer = null;
-            this.playing = false;
-            this.hasPermission = false;
-            this.useCamera = false;
-            this.recording = false;
-            this.baseBeta = null;
-            this.cooldown = false;
-            this.threshold = 35;
-            
-            this.initElements();
-            this.loadGenres();
+        function updateCameraToggle() {
+            state.useCamera = els.home.cameraChk.checked;
+            els.home.toggle.style.transform = state.useCamera ? 'translateX(20px)' : 'translateX(0)';
+            els.home.toggle.style.background = state.useCamera ? 'var(--success)' : 'white';
         }
-        
-        initElements() {
-            this.els = {
-                loading: document.getElementById('loading-screen'),
-                screens: {
-                    home: document.getElementById('home-screen'),
-                    genre: document.getElementById('genre-screen'),
-                    time: document.getElementById('time-screen'),
-                    countdown: document.getElementById('countdown-screen'),
-                    game: document.getElementById('game-screen'),
-                    result: document.getElementById('result-screen')
-                },
-                genreSelect: document.getElementById('genre-select'),
-                timeSelect: document.getElementById('time-select'),
-                selectedGenre: document.getElementById('selected-genre'),
-                selectedTime: document.getElementById('selected-time'),
-                startBtn: document.getElementById('start-btn'),
-                cameraToggle: document.getElementById('camera-toggle'),
-                genreList: document.getElementById('genre-list'),
-                genreBack: document.getElementById('genre-back'),
-                timeOpts: document.getElementById('time-options'),
-                timeBack: document.getElementById('time-back'),
-                countdownNum: document.getElementById('countdown-number'),
-                cameraBg: document.getElementById('game-camera-bg'),
-                cameraVideo: document.getElementById('game-camera-video'),
-                timerDisp: document.getElementById('timer'),
-                scoreDisp: document.getElementById('current-score'),
-                question: document.getElementById('question'),
-                feedback: document.getElementById('feedback'),
-                feedbackIcon: document.getElementById('feedback-icon'),
-                feedbackText: document.getElementById('feedback-text'),
-                recInd: document.getElementById('rec-indicator'),
-                finalScore: document.getElementById('final-score'),
-                correctCount: document.getElementById('correct-count'),
-                passCount: document.getElementById('pass-count'),
-                correctList: document.getElementById('correct-list'),
-                passList: document.getElementById('pass-list'),
-                homeBtn: document.getElementById('home-btn'),
-                videoBtn: document.getElementById('video-btn'),
-                videoPreview: document.getElementById('video-preview'),
-                recordedVideo: document.getElementById('recorded-video'),
-                videoClose: document.getElementById('video-close-btn'),
-                videoSave: document.getElementById('video-save-btn'),
-                permModal: document.getElementById('permission-modal'),
-                permBtn: document.getElementById('permission-btn')
-            };
+
+        function changeScreen(id) {
+            Object.values(els.screens).forEach(s => s.classList.remove('active'));
+            els.screens[id].classList.add('active');
         }
-        
-        async loadGenres() {
-            try {
-                const indexRes = await fetch(GENRES_INDEX);
-                if (!indexRes.ok) throw new Error('genres.json not found');
-                const fileList = await indexRes.json();
-                
-                const results = await Promise.all(
-                    fileList.map(file => 
-                        fetch(`data/${file}`).then(r => {
-                            if (!r.ok) throw new Error(`Failed to load ${file}`);
-                            return r.json();
-                        })
-                    )
-                );
-                
-                this.genres = results;
-                this.init();
-            } catch (e) {
-                console.error('Load error:', e);
-                this.els.loading.innerHTML = `
-                    <div style="text-align:center;padding:20px;">
-                        <p style="color:var(--danger);font-size:18px;margin-bottom:10px;">読み込みエラー</p>
-                        <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;">
-                            data/genres.json が見つかりません。
-                        </p>
-                    </div>
-                `;
-            }
-        }
-        
-        init() {
-            this.els.loading.classList.add('hidden');
-            this.bindEvents();
-            this.renderGenres();
-            this.renderTimeOpts();
-        }
-        
-        bindEvents() {
-            this.els.genreSelect.onclick = () => this.showScreen('genre');
-            this.els.timeSelect.onclick = () => this.showScreen('time');
-            this.els.startBtn.onclick = () => this.startGame();
-            this.els.cameraToggle.onclick = () => {
-                this.useCamera = !this.useCamera;
-                this.els.cameraToggle.classList.toggle('active', this.useCamera);
-            };
-            this.els.genreBack.onclick = () => this.showScreen('home');
-            this.els.timeBack.onclick = () => this.showScreen('home');
-            this.els.homeBtn.onclick = () => this.goHome();
-            this.els.videoBtn.onclick = () => this.showVideo();
-            this.els.videoClose.onclick = () => this.hideVideo();
-            this.els.videoSave.onclick = () => this.saveVideo();
-            this.els.permBtn.onclick = () => this.requestPermission();
-            
-            window.addEventListener('deviceorientation', e => this.handleOrientation(e));
-        }
-        
-        showScreen(name) {
-            Object.values(this.els.screens).forEach(s => s.classList.remove('active'));
-            this.els.screens[name].classList.add('active');
-        }
-        
-        renderGenres() {
-            this.els.genreList.innerHTML = this.genres.map(g => `
-                <div class="selection-item ${this.selectedGenre?.id === g.id ? 'selected' : ''}" data-id="${g.id}">
-                    <span>${g.icon} ${g.name}（${g.items.length}問）</span>
-                    <span class="checkmark">✓</span>
+
+        function renderGenreList() {
+            els.lists.genre.innerHTML = state.genres.map(g => `
+                <div class="list-item ${state.selectedGenre?.id === g.id ? 'selected' : ''}" 
+                     onclick="selectGenre('${g.id}')">
+                    <span>${g.icon} ${g.name}</span>
+                    <span>${state.selectedGenre?.id === g.id ? '✔' : ''}</span>
                 </div>
             `).join('');
-            
-            this.els.genreList.querySelectorAll('.selection-item').forEach(el => {
-                el.onclick = () => {
-                    this.selectedGenre = this.genres.find(g => g.id === el.dataset.id);
-                    this.els.selectedGenre.textContent = this.selectedGenre.name;
-                    this.els.startBtn.disabled = false;
-                    this.renderGenres();
-                    setTimeout(() => this.showScreen('home'), 150);
-                };
-            });
         }
-        
-        renderTimeOpts() {
-            this.els.timeOpts.innerHTML = this.timeOpts.map(s => {
-                const label = s < 60 ? `${s}秒` : `${s/60}分`;
-                return `<button class="time-option ${this.selectedTime === s ? 'selected' : ''}" data-time="${s}">${label}</button>`;
-            }).join('');
-            
-            this.els.timeOpts.querySelectorAll('.time-option').forEach(btn => {
-                btn.onclick = () => {
-                    this.selectedTime = parseInt(btn.dataset.time);
-                    const label = this.selectedTime < 60 ? `${this.selectedTime}秒` : `${this.selectedTime/60}分`;
-                    this.els.selectedTime.textContent = label;
-                    this.renderTimeOpts();
-                    setTimeout(() => this.showScreen('home'), 150);
-                };
-            });
-        }
-        
-        async startGame() {
-            this.sound.init();
-            
-            if (typeof DeviceOrientationEvent !== 'undefined' && 
-                typeof DeviceOrientationEvent.requestPermission === 'function' &&
-                !this.hasPermission) {
-                this.els.permModal.classList.add('show');
-                return;
-            }
-            
-            await this.initGame();
-            this.startCountdown();
-        }
-        
-        async requestPermission() {
-            try {
-                const perm = await DeviceOrientationEvent.requestPermission();
-                if (perm === 'granted') this.hasPermission = true;
-            } catch (e) {
-                this.hasPermission = true;
-            }
-            this.els.permModal.classList.remove('show');
-            await this.initGame();
-            this.startCountdown();
-        }
-        
-        async initGame() {
-            this.questions = [...this.selectedGenre.items].sort(() => Math.random() - 0.5);
-            this.qIndex = 0;
-            this.correct = [];
-            this.passed = [];
-            this.timeLeft = this.selectedTime;
-            this.playing = false;
-            this.baseBeta = null;
-            this.recording = false;
-            
-            if (this.useCamera) {
-                const ok = await this.camera.start(this.els.cameraVideo);
-                if (ok) {
-                    this.els.cameraBg.style.display = 'block';
-                } else {
-                    this.useCamera = false;
-                    this.els.cameraToggle.classList.remove('active');
-                }
-            } else {
-                this.els.cameraBg.style.display = 'none';
-            }
-        }
-        
-        startCountdown() {
-            this.showScreen('countdown');
-            let count = 3;
-            this.els.countdownNum.textContent = count;
-            this.sound.countdown();
-            
-            const interval = setInterval(() => {
-                count--;
-                if (count > 0) {
-                    this.els.countdownNum.textContent = count;
-                    this.sound.countdown();
-                } else {
-                    clearInterval(interval);
-                    this.sound.start();
-                    this.beginGame();
-                }
-            }, 1000);
-        }
-        
-        beginGame() {
-            this.showScreen('game');
-            this.playing = true;
-            this.showQuestion();
-            this.updateTimer();
-            this.updateScore();
-            
-            if (this.useCamera) {
-                this.camera.startRecording();
-                this.recording = true;
-                this.els.recInd.classList.add('show');
-            }
-            
-            this.timer = setInterval(() => {
-                this.timeLeft--;
-                this.updateTimer();
-                
-                if (this.timeLeft <= 5 && this.timeLeft > 0) {
-                    this.sound.warning();
-                    this.els.timerDisp.classList.add('warning');
-                }
-                
-                if (this.timeLeft <= 0) this.endGame();
-            }, 1000);
-        }
-        
-        showQuestion() {
-            if (this.qIndex >= this.questions.length) {
-                this.questions = [...this.selectedGenre.items].sort(() => Math.random() - 0.5);
-                this.qIndex = 0;
-            }
-            this.els.question.textContent = this.questions[this.qIndex];
-            this.baseBeta = null;
-        }
-        
-        updateTimer() {
-            const m = Math.floor(this.timeLeft / 60);
-            const s = this.timeLeft % 60;
-            this.els.timerDisp.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-        }
-        
-        updateScore() {
-            this.els.scoreDisp.textContent = this.correct.length;
-        }
-        
-        handleOrientation(e) {
-            if (!this.playing || this.cooldown) return;
-            
-            const beta = e.beta;
-            if (beta === null) return;
-            
-            if (this.baseBeta === null) {
-                this.baseBeta = beta;
-                return;
-            }
-            
-            const delta = beta - this.baseBeta;
-            
-            if (delta > this.threshold) {
-                this.answer(true);
-            } else if (delta < -this.threshold) {
-                this.answer(false);
-            }
-        }
-        
-        answer(isCorrect) {
-            if (this.cooldown) return;
-            this.cooldown = true;
-            
-            const q = this.questions[this.qIndex];
-            
-            if (isCorrect) {
-                this.correct.push(q);
-                this.sound.correct();
-                this.showFeedback(true);
-            } else {
-                this.passed.push(q);
-                this.sound.pass();
-                this.showFeedback(false);
-            }
-            
-            this.updateScore();
-            this.qIndex++;
-            
-            setTimeout(() => {
-                this.hideFeedback();
-                this.showQuestion();
-                this.cooldown = false;
-            }, 600);
-        }
-        
-        showFeedback(isCorrect) {
-            this.els.feedback.className = `feedback-overlay show ${isCorrect ? 'correct' : 'pass'}`;
-            this.els.feedbackIcon.textContent = isCorrect ? '⭕' : '⏭️';
-            this.els.feedbackText.textContent = isCorrect ? '正解！' : 'パス';
-        }
-        
-        hideFeedback() {
-            this.els.feedback.classList.remove('show');
-        }
-        
-        async endGame() {
-            this.playing = false;
-            clearInterval(this.timer);
-            this.els.timerDisp.classList.remove('warning');
-            this.els.recInd.classList.remove('show');
-            
-            if (this.recording) {
-                await this.camera.stopRecording();
-                this.recording = false;
-            }
-            
-            this.sound.end();
-            this.showResults();
-        }
-        
-        showResults() {
-            this.showScreen('result');
-            
-            this.els.finalScore.textContent = this.correct.length;
-            this.els.correctCount.textContent = this.correct.length;
-            this.els.passCount.textContent = this.passed.length;
-            
-            this.els.videoBtn.style.display = this.camera.getBlob() ? 'block' : 'none';
-            
-            this.els.correctList.innerHTML = this.correct.length > 0
-                ? this.correct.map(q => `<div class="result-item">${q}</div>`).join('')
-                : '<div class="empty-list">なし</div>';
-            
-            this.els.passList.innerHTML = this.passed.length > 0
-                ? this.passed.map(q => `<div class="result-item">${q}</div>`).join('')
-                : '<div class="empty-list">なし</div>';
-        }
-        
-        showVideo() {
-            const blob = this.camera.getBlob();
-            if (blob) {
-                this.els.recordedVideo.src = URL.createObjectURL(blob);
-                this.els.videoPreview.classList.add('show');
-            }
-        }
-        
-        hideVideo() {
-            this.els.videoPreview.classList.remove('show');
-            this.els.recordedVideo.pause();
-        }
-        
-        saveVideo() {
-            const now = new Date();
-            const name = `gesture-${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}-${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}.webm`;
-            this.camera.download(name);
-        }
-        
-        goHome() {
-            this.camera.stop();
-            this.showScreen('home');
-        }
-    }
 
-    new Game();
+        window.selectGenre = (id) => {
+            state.selectedGenre = state.genres.find(g => g.id === id);
+            els.home.genre.innerText = state.selectedGenre.name;
+            els.home.startBtn.disabled = false;
+            renderGenreList();
+            changeScreen('home');
+        };
+
+        function renderTimeList() {
+            const times = [30, 60, 90, 120, 180];
+            els.lists.time.innerHTML = times.map(t => `
+                <div class="list-item ${state.time === t ? 'selected' : ''}" 
+                     onclick="selectTime(${t})">
+                    <span>${t}秒 (${t/60}分)</span>
+                    <span>${state.time === t ? '✔' : ''}</span>
+                </div>
+            `).join('');
+        }
+
+        window.selectTime = (t) => {
+            state.time = t;
+            els.home.time.innerText = t + '秒';
+            renderTimeList();
+            changeScreen('home');
+        };
+
+        // --- ゲーム開始処理 ---
+        function tryStartGame() {
+            // フルスクリーン化（ユーザー操作が必要）
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(e => console.log('Fullscreen failed', e));
+            }
+
+            // iOS 13+ のセンサー許可確認
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function' && 
+                !state.orientationPermitted) {
+                els.permModal.style.display = 'flex';
+            } else {
+                startGameSequence();
+            }
+        }
+
+        async function startGameSequence() {
+            // カメラ準備
+            if (state.useCamera) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                    els.game.video.srcObject = stream;
+                } catch(e) {
+                    console.error("Camera fail", e);
+                }
+            } else {
+                els.game.video.srcObject = null;
+            }
+
+            // 問題セットアップ
+            state.questions = [...state.selectedGenre.items].sort(() => Math.random() - 0.5);
+            state.qIndex = 0;
+            state.correctItems = [];
+            state.passItems = [];
+            
+            // カウントダウン開始
+            els.countdown.style.display = 'flex';
+            let count = 3;
+            els.countVal.innerText = count;
+            sounds.count();
+            
+            const countInt = setInterval(() => {
+                count--;
+                if(count > 0) {
+                    els.countVal.innerText = count;
+                    sounds.count();
+                } else {
+                    clearInterval(countInt);
+                    els.countdown.style.display = 'none';
+                    startMainGame();
+                }
+            }, 1000);
+        }
+
+        // --- メインゲームループ ---
+        function startMainGame() {
+            changeScreen('game');
+            state.isPlaying = true;
+            state.timeLeft = state.time;
+            state.baseAngle = null; // 基準リセット
+            
+            sounds.start();
+            updateQuestion();
+            updateTimerUI();
+            
+            // センサー監視開始
+            window.addEventListener('deviceorientation', handleOrientation);
+
+            // タイマー
+            state.timer = setInterval(() => {
+                state.timeLeft--;
+                updateTimerUI();
+                if(state.timeLeft <= 5) els.game.timer.classList.add('urgent');
+                else els.game.timer.classList.remove('urgent');
+
+                if(state.timeLeft <= 0) endGame();
+            }, 1000);
+        }
+
+        function updateQuestion() {
+            if(state.qIndex >= state.questions.length) state.qIndex = 0; // ループ
+            els.game.question.innerText = state.questions[state.qIndex];
+            // 新しい問題が出たら、その瞬間の角度を基準にするのではなく、
+            // 「判定済み」フラグを下ろすだけで、基準角度は「おでこに当てて安定した位置」を維持すべきだが、
+            // 簡易化のため「正解後、戻ってきたらリセット」する方式をとる
+        }
+
+        function updateTimerUI() {
+            els.game.timer.innerText = state.timeLeft;
+            els.game.score.innerText = state.correctItems.length;
+        }
+
+        // --- 核心：傾き判定 ---
+        function handleOrientation(e) {
+            if(!state.isPlaying || state.isCooldown) return;
+
+            // 横向きの場合、お辞儀方向（長辺の回転）は gamma に出る。
+            // しかし、iOSとAndroidで符号が逆だったり、90度を超えると反転したりする。
+            
+            // 最も堅牢な方法：
+            // スマホが垂直（おでこ）にあるとき、Gamma はおよそ +/- 90度（または0度付近、持ち方による）。
+            // Beta はおよそ 0度。
+            
+            // ここではシンプルに「現在のGamma値」を監視し、
+            // ゲーム開始直後(または判定復帰後)の値を「基準(Zero)」とする。
+            
+            let angle = e.gamma; 
+            // ※もし端末が縦持ちなら beta を使うべきだが、横持ち前提とする。
+            // Debug
+            els.debug.innerText = `B:${Math.round(e.beta)} G:${Math.round(e.gamma)} Base:${Math.round(state.baseAngle)}`;
+
+            if (angle === null) return;
+
+            // 基準がなければ設定（これがキャリブレーション）
+            if (state.baseAngle === null) {
+                // 安定するまで待つのも手だが、即時設定
+                state.baseAngle = angle;
+                return;
+            }
+
+            const diff = angle - state.baseAngle;
+
+            // 判定ロジック
+            // 一般的に、横持ちでおでこから「下（床）」へ画面を向けると、Gamma値は変化する。
+            // 変化量が閾値を超えたら判定。
+            
+            if (Math.abs(diff) > state.threshold) {
+                // どっちが正解でどっちがパスか？
+                // 実際に動かすと、機種によるが
+                // 画面を伏せる（正解）→ 値が大きく変化
+                // 画面を空へ（パス）→ 逆へ変化
+                
+                // 多くのデバイスで、
+                // 初期(90度付近) -> 画面下向ける -> 0度へ向かう (差分マイナス or プラス)
+                // これは実機で符号がまちまちなので、
+                // 「大きく動いた」ことだけ検知し、一旦「正解」とする簡易モードか、
+                // または「上」「下」を厳密に分けるか。
+                
+                // 今回は「下（正解）」「上（パス）」を分けたい。
+                // 画面を手前に倒す（下を見る）と Gamma は 0 に近づく（絶対値が減る）。
+                // 画面を後ろに逸らす（上を見る）と Gamma は 90 を超える、または逆側へ。
+                
+                // 簡易判定：
+                // diff > threshold  => A
+                // diff < -threshold => B
+                
+                // iPhone(横左): 直立=-90, 下へ傾ける= -45 (diff +45) -> 正解
+                // Android(横左): 直立=90, 下へ傾ける= 45 (diff -45) -> 正解
+                // ※この符号問題が厄介。
+                
+                // ★解決策:
+                // 「絶対値が減る方向（0に近づく）」＝「画面が水平（床）に近づく」＝「正解（下）」
+                // 「絶対値が増える方向（垂直を超える）」＝「パス（上）」
+                
+                const absCurrent = Math.abs(angle);
+                const absBase = Math.abs(state.baseAngle);
+                
+                if (absCurrent < absBase - state.threshold) {
+                    // 床に近づいた -> 正解
+                    triggerAnswer(true);
+                } else if (absCurrent > absBase + state.threshold) {
+                    // 天井に向いた -> パス
+                    triggerAnswer(false);
+                }
+            }
+        }
+
+        function triggerAnswer(isCorrect) {
+            state.isCooldown = true;
+            const item = state.questions[state.qIndex];
+
+            if (isCorrect) {
+                state.correctItems.push(item);
+                sounds.ok();
+                showFeedback('correct', '⭕ 正解！');
+            } else {
+                state.passItems.push(item);
+                sounds.pass();
+                showFeedback('pass', '⏭️ パス');
+            }
+
+            // 次の問題へ
+            setTimeout(() => {
+                state.qIndex++;
+                updateQuestion();
+                hideFeedback();
+                
+                // クールダウン解除＆基準角度リセット（重要：ユーザーが頭を戻した位置を新基準にする）
+                // ただし即座にリセットすると、戻る動作で逆判定されるので、
+                // 「安定待ち」を入れるのが理想だが、簡易的に
+                // 「1秒間は判定しない」かつ「その後の最初の値を新基準にする」
+                setTimeout(() => {
+                    state.baseAngle = null; // 次のフレームで再設定される
+                    state.isCooldown = false;
+                }, 500); 
+            }, 800);
+        }
+
+        function showFeedback(cls, text) {
+            els.game.feedback.className = `feedback-overlay show ${cls}`;
+            els.game.fbIcon.innerText = cls === 'correct' ? '⭕' : '⏭️';
+            els.game.fbText.innerText = text;
+        }
+
+        function hideFeedback() {
+            els.game.feedback.classList.remove('show');
+        }
+
+        function endGame() {
+            state.isPlaying = false;
+            clearInterval(state.timer);
+            window.removeEventListener('deviceorientation', handleOrientation);
+            
+            // カメラ停止
+            if(els.game.video.srcObject) {
+                els.game.video.srcObject.getTracks().forEach(t => t.stop());
+            }
+
+            sounds.end();
+            showResult();
+        }
+
+        function showResult() {
+            changeScreen('result');
+            document.getElementById('res-score').innerText = state.correctItems.length;
+            
+            els.lists.resCorrect.innerHTML = state.correctItems.map(t => 
+                `<div class="list-item"><span>${t}</span><span style="color:var(--success)">⭕</span></div>`
+            ).join('') || '<div style="padding:10px; color:#666;">なし</div>';
+            
+            els.lists.resPass.innerHTML = state.passItems.map(t => 
+                `<div class="list-item"><span>${t}</span><span style="color:var(--pass)">⏭️</span></div>`
+            ).join('') || '<div style="padding:10px; color:#666;">なし</div>';
+        }
+
+        // 開始
+        init();
+
     </script>
 </body>
 </html>
