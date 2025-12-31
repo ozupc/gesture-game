@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ジェスチャーゲーム</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-primary: #F2F2F7;
+            --bg-secondary: #FFFFFF;
+            --bg-tertiary: #E5E5EA;
+            --text-primary: #000000;
+            --text-secondary: #3C3C43;
+            --text-tertiary: #8E8E93;
+            --accent: #007AFF;
+            --success: #34C759;
+            --warning: #FF9500;
+            --danger: #FF3B30;
+            --separator: rgba(60, 60, 67, 0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #000000;
+                --bg-secondary: #1C1C1E;
+                --bg-tertiary: #2C2C2E;
+                --text-primary: #FFFFFF;
+                --text-secondary: #EBEBF5;
+                --text-tertiary: #8E8E93;
+                --separator: rgba(84, 84, 88, 0.65);
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow: hidden;
+        }
+
+        .rotate-message {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .rotate-icon {
+            font-size: 64px;
+            animation: rotate-phone 2s ease-in-out infinite;
+        }
+
+        @keyframes rotate-phone {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(90deg); }
+        }
+
+        .rotate-text {
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+
+        @media (orientation: portrait) {
+            .rotate-message { display: flex; }
+            .app-container { display: none !important; }
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 16px;
+            padding-left: max(16px, env(safe-area-inset-left));
+            padding-right: max(16px, env(safe-area-inset-right));
+        }
+
+        .screen.active { display: flex; }
+
+        /* Loading */
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            gap: 16px;
+        }
+
+        .loading-screen.hidden { display: none; }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-tertiary);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Home Screen */
+        #home-screen {
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .app-title {
+            font-size: 32px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .app-subtitle {
+            font-size: 15px;
+            color: var(--text-tertiary);
+            margin-top: 6px;
+        }
+
+        .menu-container {
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .menu-section {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .menu-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            padding: 8px 16px;
+            margin-top: 12px;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 16px;
+            border-bottom: 0.5px solid var(--separator);
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item:active { background-color: var(--bg-tertiary); }
+
+        .menu-item-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .menu-item-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .menu-item-label { font-size: 16px; }
+
+        .menu-item-value {
+            font-size: 16px;
+            color: var(--text-tertiary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .menu-item-value::after {
+            content: '›';
+            font-size: 18px;
+            opacity: 0.5;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 51px;
+            height: 31px;
+            background: var(--bg-tertiary);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .toggle-switch.active { background: var(--success); }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 27px;
+            height: 27px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active::after { transform: translateX(20px); }
+
+        .start-button {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+
+        .start-button:active {
+            opacity: 0.8;
+            transform: scale(0.98);
+        }
+
+        .start-button:disabled {
+            background: var(--text-tertiary);
+            cursor: not-allowed;
+        }
+
+        /* Selection Screen */
+        .nav-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 4px;
+            min-height: 44px;
+        }
+
+        .nav-button {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 8px;
+            min-width: 80px;
+        }
+
+        .nav-title {
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        .selection-list {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .selection-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            margin-bottom: 1px;
+            cursor: pointer;
+        }
+
+        .selection-item:first-child { border-radius: 12px 12px 0 0; }
+        .selection-item:last-child { border-radius: 0 0 12px 12px; margin-bottom: 0; }
+        .selection-item:only-child { border-radius: 12px; }
+        .selection-item:active { background-color: var(--bg-tertiary); }
+        .selection-item.selected { color: var(--accent); }
+
+        .checkmark {
+            color: var(--accent);
+            font-weight: 600;
+            opacity: 0;
+        }
+
+        .selection-item.selected .checkmark { opacity: 1; }
+
+        .time-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px;
+        }
+
+        .time-option {
+            flex: 1;
+            min-width: calc(33.333% - 6px);
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .time-option.selected {
+            border-color: var(--accent);
+            background: rgba(0, 122, 255, 0.1);
+            color: var(--accent);
+        }
+
+        /* Game Screen */
+        #game-screen {
+            padding: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .game-camera-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            display: none;
+            background: #000;
+        }
+
+        .game-camera-bg video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.25;
+            transform: scaleX(-1);
+        }
+
+        .game-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            height: 100%;
+            padding: 16px 24px;
+        }
+
+        .game-sidebar {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            min-width: 100px;
+        }
+
+        .timer {
+            font-size: 42px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer.warning {
+            color: var(--danger);
+            animation: timer-pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes timer-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .score-display {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .question-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .question-text {
+            font-size: 80px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .instruction-sidebar {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            justify-content: flex-end;
+            height: 100%;
+            min-width: 120px;
+        }
+
+        .instruction-item {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            margin-bottom: 8px;
+        }
+
+        .rec-indicator {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--danger);
+            margin-bottom: auto;
+        }
+
+        .rec-indicator.show { display: flex; }
+
+        .rec-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--danger);
+            border-radius: 50%;
+            animation: rec-blink 1s infinite;
+        }
+
+        @keyframes rec-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .feedback-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s;
+            z-index: 100;
+        }
+
+        .feedback-overlay.show { opacity: 1; }
+        .feedback-overlay.correct { background: var(--success); }
+        .feedback-overlay.pass { background: var(--warning); }
+
+        .feedback-icon { font-size: 72px; margin-bottom: 12px; }
+        .feedback-text { font-size: 32px; font-weight: 700; color: white; }
+
+        /* Countdown */
+        #countdown-screen {
+            justify-content: center;
+            align-items: center;
+        }
+
+        .countdown-number {
+            font-size: 100px;
+            font-weight: 700;
+            color: var(--accent);
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .countdown-instruction {
+            margin-top: 24px;
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        /* Result Screen */
+        #result-screen {
+            flex-direction: row;
+            gap: 24px;
+        }
+
+        .result-left {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 200px;
+        }
+
+        .result-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .result-score {
+            font-size: 56px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .result-score span {
+            font-size: 20px;
+            color: var(--text-tertiary);
+        }
+
+        .result-stats {
+            display: flex;
+            gap: 24px;
+            margin-top: 12px;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .stat-value.correct { color: var(--success); }
+        .stat-value.pass { color: var(--warning); }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .result-actions {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .result-button {
+            padding: 12px 20px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .result-button:active { opacity: 0.8; }
+
+        .result-button.secondary {
+            background: var(--bg-secondary);
+            color: var(--accent);
+        }
+
+        .result-lists {
+            flex: 1;
+            display: flex;
+            gap: 16px;
+            overflow: hidden;
+        }
+
+        .result-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .result-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            padding: 6px 12px;
+        }
+
+        .result-list {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            padding: 10px 14px;
+            border-bottom: 0.5px solid var(--separator);
+            font-size: 15px;
+        }
+
+        .result-item:last-child { border-bottom: none; }
+
+        .empty-list {
+            padding: 14px;
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        /* Video Preview */
+        .video-preview-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .video-preview-overlay.show { display: flex; }
+
+        .video-preview-container {
+            background: var(--bg-secondary);
+            border-radius: 14px;
+            overflow: hidden;
+            max-width: 90%;
+            max-height: 90%;
+        }
+
+        .video-preview-container video {
+            max-width: 100%;
+            max-height: 60vh;
+            display: block;
+        }
+
+        .video-preview-actions {
+            display: flex;
+            padding: 12px;
+            gap: 10px;
+        }
+
+        .video-preview-actions button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .video-save-btn { background: var(--accent); color: white; }
+        .video-close-btn { background: var(--bg-tertiary); color: var(--text-primary); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-overlay.show { display: flex; }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 14px;
+            width: 100%;
+            max-width: 300px;
+            overflow: hidden;
+        }
+
+        .modal-content {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .modal-icon { font-size: 42px; margin-bottom: 12px; }
+        .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+        .modal-text { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+        .modal-actions {
+            display: flex;
+            border-top: 0.5px solid var(--separator);
+        }
+
+        .modal-button {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            font-size: 17px;
+            color: var(--accent);
+            cursor: pointer;
+        }
+
+        .modal-button:active { background: var(--bg-tertiary); }
+        .modal-button.primary { font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="rotate-message">
+        <div class="rotate-icon">📱</div>
+        <p class="rotate-text">スマホを横向きにしてください</p>
+    </div>
+
+    <div class="loading-screen" id="loading-screen">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">読み込み中...</p>
+    </div>
+
+    <div class="app-container">
+        <!-- Home -->
+        <div id="home-screen" class="screen active">
+            <div>
+                <h1 class="app-title">🎭 ジェスチャーゲーム</h1>
+                <p class="app-subtitle">おでこにスマホを当てて遊ぼう！</p>
+            </div>
+            <div class="menu-container">
+                <p class="menu-section-title">ゲーム設定</p>
+                <div class="menu-section">
+                    <div class="menu-item" id="genre-select">
+                        <div class="menu-item-left">
+                            <div class="menu-item-icon" style="background:#FF9500;">📁</div>
+                            <span class="menu-item-label">ジャンル</span>
+                        </div>
+                        <span class="menu-item-value" id="selected-genre">選択してください</span>
+                    </div>
+                    <div class="menu-item" id="time-select">
+                        <div class="menu-item-left">
+                            <div class="menu-item-icon" style="background:#34C759;">⏱️</div>
+                            <span class="menu-item-label">制限時間</span>
+                        </div>
+                        <span class="menu-item-value" id="selected-time">1分</span>
+                    </div>
+                    <div class="menu-item">
+                        <div class="menu-item-left">
+                            <div class="menu-item-icon" style="background:#FF3B30;">🎥</div>
+                            <span class="menu-item-label">録画する</span>
+                        </div>
+                        <div class="toggle-switch" id="camera-toggle"></div>
+                    </div>
+                </div>
+                <button class="start-button" id="start-btn" disabled>ゲームスタート</button>
+            </div>
+        </div>
+
+        <!-- Genre Select -->
+        <div id="genre-screen" class="screen">
+            <div class="nav-bar">
+                <button class="nav-button" id="genre-back">キャンセル</button>
+                <span class="nav-title">ジャンル選択</span>
+                <span class="nav-button"></span>
+            </div>
+            <div class="selection-list" id="genre-list"></div>
+        </div>
+
+        <!-- Time Select -->
+        <div id="time-screen" class="screen">
+            <div class="nav-bar">
+                <button class="nav-button" id="time-back">キャンセル</button>
+                <span class="nav-title">制限時間</span>
+                <span class="nav-button"></span>
+            </div>
+            <div class="menu-section" style="margin:16px 0;">
+                <div class="time-options" id="time-options"></div>
+            </div>
+        </div>
+
+        <!-- Countdown -->
+        <div id="countdown-screen" class="screen">
+            <div class="countdown-number" id="countdown-number">3</div>
+            <p class="countdown-instruction">スマホをおでこに当てて準備！</p>
+        </div>
+
+        <!-- Game -->
+        <div id="game-screen" class="screen">
+            <div class="game-camera-bg" id="game-camera-bg">
+                <video id="game-camera-video" autoplay playsinline muted></video>
+            </div>
+            <div class="game-content">
+                <div class="game-sidebar">
+                    <div class="timer" id="timer">1:00</div>
+                    <div class="score-display"><span id="current-score">0</span>問正解</div>
+                </div>
+                <div class="question-container">
+                    <div class="question-text" id="question"></div>
+                </div>
+                <div class="instruction-sidebar">
+                    <div class="rec-indicator" id="rec-indicator">
+                        <div class="rec-dot"></div>
+                        <span>REC</span>
+                    </div>
+                    <div class="instruction-item">⬇️ 下 → 正解</div>
+                    <div class="instruction-item">⬆️ 上 → パス</div>
+                </div>
+            </div>
+            <div class="feedback-overlay" id="feedback">
+                <div class="feedback-icon" id="feedback-icon"></div>
+                <div class="feedback-text" id="feedback-text"></div>
+            </div>
+        </div>
+
+        <!-- Result -->
+        <div id="result-screen" class="screen">
+            <div class="result-left">
+                <div>
+                    <h2 class="result-title">結果発表</h2>
+                    <div class="result-score"><span id="final-score">0</span><span>問正解</span></div>
+                    <div class="result-stats">
+                        <div class="stat-item">
+                            <div class="stat-value correct" id="correct-count">0</div>
+                            <div class="stat-label">正解</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value pass" id="pass-count">0</div>
+                            <div class="stat-label">パス</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-actions">
+                    <button class="result-button" id="home-btn">ホームに戻る</button>
+                    <button class="result-button secondary" id="video-btn" style="display:none;">録画を見る</button>
+                </div>
+            </div>
+            <div class="result-lists">
+                <div class="result-section">
+                    <p class="result-section-title">✅ 正解</p>
+                    <div class="result-list" id="correct-list"></div>
+                </div>
+                <div class="result-section">
+                    <p class="result-section-title">⏭️ パス</p>
+                    <div class="result-list" id="pass-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Preview -->
+    <div class="video-preview-overlay" id="video-preview">
+        <div class="video-preview-container">
+            <video id="recorded-video" controls playsinline></video>
+            <div class="video-preview-actions">
+                <button class="video-close-btn" id="video-close-btn">閉じる</button>
+                <button class="video-save-btn" id="video-save-btn">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permission Modal -->
+    <div class="modal-overlay" id="permission-modal">
+        <div class="modal">
+            <div class="modal-content">
+                <div class="modal-icon">📱</div>
+                <h3 class="modal-title">センサーへのアクセス</h3>
+                <p class="modal-text">傾きを検出するために許可が必要です。</p>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-button primary" id="permission-btn">許可する</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ══════════════════════════════════════════════════════════════
+    // 設定: ジャンルファイルのリスト
+    // 新しいジャンルを追加する場合は、ここにファイル名を追加
+    // ══════════════════════════════════════════════════════════════
+    const GENRE_FILES = [
+        'data/animals.json',
+        'data/sports.json',
+        'data/jobs.json',
+        'data/actions.json',
+        'data/characters.json',
+        'data/food.json'
+    ];
+
+    // 効果音
+    class SoundManager {
+        constructor() { this.ctx = null; }
+        
+        init() {
+            if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+        }
+        
+        play(freq, dur, type = 'sine', vol = 0.3) {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.frequency.value = freq;
+            osc.type = type;
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+            osc.start();
+            osc.stop(this.ctx.currentTime + dur);
+        }
+        
+        correct() {
+            this.play(523, 0.1); 
+            setTimeout(() => this.play(659, 0.1), 80);
+            setTimeout(() => this.play(784, 0.2), 160);
+        }
+        
+        pass() {
+            this.play(392, 0.15, 'triangle');
+            setTimeout(() => this.play(349, 0.15, 'triangle'), 100);
+        }
+        
+        countdown() { this.play(440, 0.1); }
+        
+        start() {
+            this.play(523, 0.1);
+            setTimeout(() => this.play(659, 0.1), 100);
+            setTimeout(() => this.play(784, 0.1), 200);
+            setTimeout(() => this.play(1047, 0.3), 300);
+        }
+        
+        end() {
+            [523, 587, 659, 784, 659, 784, 1047].forEach((f, i) => {
+                setTimeout(() => this.play(f, 0.2), i * 120);
+            });
+        }
+        
+        warning() { this.play(880, 0.1, 'square', 0.2); }
+    }
+
+    // カメラ
+    class CameraManager {
+        constructor() {
+            this.stream = null;
+            this.recorder = null;
+            this.chunks = [];
+            this.blob = null;
+        }
+        
+        async start(video) {
+            try {
+                this.stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+                video.srcObject = this.stream;
+                await video.play();
+                return true;
+            } catch (e) {
+                console.error('Camera error:', e);
+                return false;
+            }
+        }
+        
+        startRecording() {
+            if (!this.stream) return false;
+            this.chunks = [];
+            try {
+                this.recorder = new MediaRecorder(this.stream, { mimeType: 'video/webm' });
+            } catch {
+                try {
+                    this.recorder = new MediaRecorder(this.stream, { mimeType: 'video/mp4' });
+                } catch {
+                    this.recorder = new MediaRecorder(this.stream);
+                }
+            }
+            this.recorder.ondataavailable = e => { if (e.data.size > 0) this.chunks.push(e.data); };
+            this.recorder.start(100);
+            return true;
+        }
+        
+        async stopRecording() {
+            return new Promise(resolve => {
+                if (!this.recorder || this.recorder.state === 'inactive') {
+                    resolve(null);
+                    return;
+                }
+                this.recorder.onstop = () => {
+                    this.blob = new Blob(this.chunks, { type: this.recorder.mimeType || 'video/webm' });
+                    resolve(this.blob);
+                };
+                this.recorder.stop();
+            });
+        }
+        
+        stop() {
+            if (this.stream) {
+                this.stream.getTracks().forEach(t => t.stop());
+                this.stream = null;
+            }
+        }
+        
+        getBlob() { return this.blob; }
+        
+        download(name = 'gesture-game.webm') {
+            if (!this.blob) return;
+            const url = URL.createObjectURL(this.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    // メインゲーム
+    class Game {
+        constructor() {
+            this.sound = new SoundManager();
+            this.camera = new CameraManager();
+            this.genres = [];
+            this.selectedGenre = null;
+            this.selectedTime = 60;
+            this.timeOpts = [30, 60, 90, 120, 180];
+            this.questions = [];
+            this.qIndex = 0;
+            this.correct = [];
+            this.passed = [];
+            this.timeLeft = 0;
+            this.timer = null;
+            this.playing = false;
+            this.hasPermission = false;
+            this.useCamera = false;
+            this.recording = false;
+            
+            // 傾き検出
+            this.baseBeta = null;
+            this.cooldown = false;
+            this.threshold = 35;
+            
+            this.initElements();
+            this.loadGenres();
+        }
+        
+        initElements() {
+            this.els = {
+                loading: document.getElementById('loading-screen'),
+                screens: {
+                    home: document.getElementById('home-screen'),
+                    genre: document.getElementById('genre-screen'),
+                    time: document.getElementById('time-screen'),
+                    countdown: document.getElementById('countdown-screen'),
+                    game: document.getElementById('game-screen'),
+                    result: document.getElementById('result-screen')
+                },
+                genreSelect: document.getElementById('genre-select'),
+                timeSelect: document.getElementById('time-select'),
+                selectedGenre: document.getElementById('selected-genre'),
+                selectedTime: document.getElementById('selected-time'),
+                startBtn: document.getElementById('start-btn'),
+                cameraToggle: document.getElementById('camera-toggle'),
+                genreList: document.getElementById('genre-list'),
+                genreBack: document.getElementById('genre-back'),
+                timeOpts: document.getElementById('time-options'),
+                timeBack: document.getElementById('time-back'),
+                countdownNum: document.getElementById('countdown-number'),
+                cameraBg: document.getElementById('game-camera-bg'),
+                cameraVideo: document.getElementById('game-camera-video'),
+                timerDisp: document.getElementById('timer'),
+                scoreDisp: document.getElementById('current-score'),
+                question: document.getElementById('question'),
+                feedback: document.getElementById('feedback'),
+                feedbackIcon: document.getElementById('feedback-icon'),
+                feedbackText: document.getElementById('feedback-text'),
+                recInd: document.getElementById('rec-indicator'),
+                finalScore: document.getElementById('final-score'),
+                correctCount: document.getElementById('correct-count'),
+                passCount: document.getElementById('pass-count'),
+                correctList: document.getElementById('correct-list'),
+                passList: document.getElementById('pass-list'),
+                homeBtn: document.getElementById('home-btn'),
+                videoBtn: document.getElementById('video-btn'),
+                videoPreview: document.getElementById('video-preview'),
+                recordedVideo: document.getElementById('recorded-video'),
+                videoClose: document.getElementById('video-close-btn'),
+                videoSave: document.getElementById('video-save-btn'),
+                permModal: document.getElementById('permission-modal'),
+                permBtn: document.getElementById('permission-btn')
+            };
+        }
+        
+        async loadGenres() {
+            try {
+                const results = await Promise.all(
+                    GENRE_FILES.map(file => 
+                        fetch(file).then(r => {
+                            if (!r.ok) throw new Error(`Failed to load ${file}`);
+                            return r.json();
+                        })
+                    )
+                );
+                this.genres = results;
+                this.init();
+            } catch (e) {
+                console.error('Load error:', e);
+                this.els.loading.innerHTML = `
+                    <div style="text-align:center;padding:20px;">
+                        <p style="color:var(--danger);font-size:18px;margin-bottom:10px;">読み込みエラー</p>
+                        <p style="color:var(--text-secondary);font-size:14px;">JSONファイルが見つかりません。<br>data/ フォルダにファイルを配置してください。</p>
+                    </div>
+                `;
+            }
+        }
+        
+        init() {
+            this.els.loading.classList.add('hidden');
+            this.bindEvents();
+            this.renderGenres();
+            this.renderTimeOpts();
+        }
+        
+        bindEvents() {
+            this.els.genreSelect.onclick = () => this.showScreen('genre');
+            this.els.timeSelect.onclick = () => this.showScreen('time');
+            this.els.startBtn.onclick = () => this.startGame();
+            this.els.cameraToggle.onclick = () => {
+                this.useCamera = !this.useCamera;
+                this.els.cameraToggle.classList.toggle('active', this.useCamera);
+            };
+            this.els.genreBack.onclick = () => this.showScreen('home');
+            this.els.timeBack.onclick = () => this.showScreen('home');
+            this.els.homeBtn.onclick = () => this.goHome();
+            this.els.videoBtn.onclick = () => this.showVideo();
+            this.els.videoClose.onclick = () => this.hideVideo();
+            this.els.videoSave.onclick = () => this.saveVideo();
+            this.els.permBtn.onclick = () => this.requestPermission();
+            
+            window.addEventListener('deviceorientation', e => this.handleOrientation(e));
+        }
+        
+        showScreen(name) {
+            Object.values(this.els.screens).forEach(s => s.classList.remove('active'));
+            this.els.screens[name].classList.add('active');
+        }
+        
+        renderGenres() {
+            this.els.genreList.innerHTML = this.genres.map(g => `
+                <div class="selection-item ${this.selectedGenre?.id === g.id ? 'selected' : ''}" data-id="${g.id}">
+                    <span>${g.icon} ${g.name}（${g.items.length}問）</span>
+                    <span class="checkmark">✓</span>
+                </div>
+            `).join('');
+            
+            this.els.genreList.querySelectorAll('.selection-item').forEach(el => {
+                el.onclick = () => {
+                    this.selectedGenre = this.genres.find(g => g.id === el.dataset.id);
+                    this.els.selectedGenre.textContent = this.selectedGenre.name;
+                    this.els.startBtn.disabled = false;
+                    this.renderGenres();
+                    setTimeout(() => this.showScreen('home'), 150);
+                };
+            });
+        }
+        
+        renderTimeOpts() {
+            this.els.timeOpts.innerHTML = this.timeOpts.map(s => {
+                const label = s < 60 ? `${s}秒` : `${s/60}分`;
+                return `<button class="time-option ${this.selectedTime === s ? 'selected' : ''}" data-time="${s}">${label}</button>`;
+            }).join('');
+            
+            this.els.timeOpts.querySelectorAll('.time-option').forEach(btn => {
+                btn.onclick = () => {
+                    this.selectedTime = parseInt(btn.dataset.time);
+                    const label = this.selectedTime < 60 ? `${this.selectedTime}秒` : `${this.selectedTime/60}分`;
+                    this.els.selectedTime.textContent = label;
+                    this.renderTimeOpts();
+                    setTimeout(() => this.showScreen('home'), 150);
+                };
+            });
+        }
+        
+        async startGame() {
+            this.sound.init();
+            
+            // iOS permission
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function' &&
+                !this.hasPermission) {
+                this.els.permModal.classList.add('show');
+                return;
+            }
+            
+            await this.initGame();
+            this.startCountdown();
+        }
+        
+        async requestPermission() {
+            try {
+                const perm = await DeviceOrientationEvent.requestPermission();
+                if (perm === 'granted') this.hasPermission = true;
+            } catch (e) {
+                this.hasPermission = true;
+            }
+            this.els.permModal.classList.remove('show');
+            await this.initGame();
+            this.startCountdown();
+        }
+        
+        async initGame() {
+            this.questions = [...this.selectedGenre.items].sort(() => Math.random() - 0.5);
+            this.qIndex = 0;
+            this.correct = [];
+            this.passed = [];
+            this.timeLeft = this.selectedTime;
+            this.playing = false;
+            this.baseBeta = null;
+            this.recording = false;
+            
+            // カメラ設定
+            if (this.useCamera) {
+                const ok = await this.camera.start(this.els.cameraVideo);
+                if (ok) {
+                    this.els.cameraBg.style.display = 'block';
+                } else {
+                    this.useCamera = false;
+                    this.els.cameraToggle.classList.remove('active');
+                }
+            } else {
+                this.els.cameraBg.style.display = 'none';
+            }
+        }
+        
+        startCountdown() {
+            this.showScreen('countdown');
+            let count = 3;
+            this.els.countdownNum.textContent = count;
+            this.sound.countdown();
+            
+            const interval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    this.els.countdownNum.textContent = count;
+                    this.sound.countdown();
+                } else {
+                    clearInterval(interval);
+                    this.sound.start();
+                    this.beginGame();
+                }
+            }, 1000);
+        }
+        
+        beginGame() {
+            this.showScreen('game');
+            this.playing = true;
+            this.showQuestion();
+            this.updateTimer();
+            this.updateScore();
+            
+            if (this.useCamera) {
+                this.camera.startRecording();
+                this.recording = true;
+                this.els.recInd.classList.add('show');
+            }
+            
+            this.timer = setInterval(() => {
+                this.timeLeft--;
+                this.updateTimer();
+                
+                if (this.timeLeft <= 5 && this.timeLeft > 0) {
+                    this.sound.warning();
+                    this.els.timerDisp.classList.add('warning');
+                }
+                
+                if (this.timeLeft <= 0) this.endGame();
+            }, 1000);
+        }
+        
+        showQuestion() {
+            if (this.qIndex >= this.questions.length) {
+                this.questions = [...this.selectedGenre.items].sort(() => Math.random() - 0.5);
+                this.qIndex = 0;
+            }
+            this.els.question.textContent = this.questions[this.qIndex];
+            this.baseBeta = null;
+        }
+        
+        updateTimer() {
+            const m = Math.floor(this.timeLeft / 60);
+            const s = this.timeLeft % 60;
+            this.els.timerDisp.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        
+        updateScore() {
+            this.els.scoreDisp.textContent = this.correct.length;
+        }
+        
+        handleOrientation(e) {
+            if (!this.playing || this.cooldown) return;
+            
+            const beta = e.beta;
+            if (beta === null) return;
+            
+            if (this.baseBeta === null) {
+                this.baseBeta = beta;
+                return;
+            }
+            
+            const delta = beta - this.baseBeta;
+            
+            if (delta > this.threshold) {
+                this.answer(true);
+            } else if (delta < -this.threshold) {
+                this.answer(false);
+            }
+        }
+        
+        answer(isCorrect) {
+            if (this.cooldown) return;
+            this.cooldown = true;
+            
+            const q = this.questions[this.qIndex];
+            
+            if (isCorrect) {
+                this.correct.push(q);
+                this.sound.correct();
+                this.showFeedback(true);
+            } else {
+                this.passed.push(q);
+                this.sound.pass();
+                this.showFeedback(false);
+            }
+            
+            this.updateScore();
+            this.qIndex++;
+            
+            setTimeout(() => {
+                this.hideFeedback();
+                this.showQuestion();
+                this.cooldown = false;
+            }, 600);
+        }
+        
+        showFeedback(isCorrect) {
+            this.els.feedback.className = `feedback-overlay show ${isCorrect ? 'correct' : 'pass'}`;
+            this.els.feedbackIcon.textContent = isCorrect ? '⭕' : '⏭️';
+            this.els.feedbackText.textContent = isCorrect ? '正解！' : 'パス';
+        }
+        
+        hideFeedback() {
+            this.els.feedback.classList.remove('show');
+        }
+        
+        async endGame() {
+            this.playing = false;
+            clearInterval(this.timer);
+            this.els.timerDisp.classList.remove('warning');
+            this.els.recInd.classList.remove('show');
+            
+            if (this.recording) {
+                await this.camera.stopRecording();
+                this.recording = false;
+            }
+            
+            this.sound.end();
+            this.showResults();
+        }
+        
+        showResults() {
+            this.showScreen('result');
+            
+            this.els.finalScore.textContent = this.correct.length;
+            this.els.correctCount.textContent = this.correct.length;
+            this.els.passCount.textContent = this.passed.length;
+            
+            this.els.videoBtn.style.display = this.camera.getBlob() ? 'block' : 'none';
+            
+            this.els.correctList.innerHTML = this.correct.length > 0
+                ? this.correct.map(q => `<div class="result-item">${q}</div>`).join('')
+                : '<div class="empty-list">なし</div>';
+            
+            this.els.passList.innerHTML = this.passed.length > 0
+                ? this.passed.map(q => `<div class="result-item">${q}</div>`).join('')
+                : '<div class="empty-list">なし</div>';
+        }
+        
+        showVideo() {
+            const blob = this.camera.getBlob();
+            if (blob) {
+                this.els.recordedVideo.src = URL.createObjectURL(blob);
+                this.els.videoPreview.classList.add('show');
+            }
+        }
+        
+        hideVideo() {
+            this.els.videoPreview.classList.remove('show');
+            this.els.recordedVideo.pause();
+        }
+        
+        saveVideo() {
+            const now = new Date();
+            const name = `gesture-${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}-${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}.webm`;
+            this.camera.download(name);
+        }
+        
+        goHome() {
+            this.camera.stop();
+            this.showScreen('home');
+        }
+    }
+
+    // 初期化
+    new Game();
+    </script>
+</body>
+</html>
