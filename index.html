@@ -44,8 +44,8 @@
             background-color: var(--bg-app);
             color: var(--text-main);
             width: 100vw;
-            height: 100dvh; /* Dynamic Viewport Height */
-            overflow: hidden; /* Prevent body scroll */
+            height: 100dvh;
+            overflow: hidden;
             position: fixed;
             inset: 0;
         }
@@ -54,7 +54,7 @@
         .screen {
             position: absolute;
             inset: 0;
-            display: none; /* デフォルト非表示 */
+            display: none;
             flex-direction: column;
             width: 100%;
             height: 100%;
@@ -64,8 +64,6 @@
                      calc(var(--safe-left) + 24px);
             z-index: 10;
             background: var(--bg-app);
-            
-            /* スクロール設定の修正 */
             overflow-y: auto; 
             -webkit-overflow-scrolling: touch;
         }
@@ -75,7 +73,6 @@
             z-index: 20;
         }
 
-        /* Game Screen specific (No scroll) */
         #screen-game {
             overflow: hidden;
             padding: 0;
@@ -195,7 +192,7 @@
         .toggle-btn.active .toggle-switch { background: var(--accent); }
         .toggle-btn.active .toggle-knob { transform: translateX(20px); }
 
-        /* Button Area Wrapper for sticky bottom */
+        /* Button Area */
         .action-area {
             margin-top: auto;
             padding-top: 20px;
@@ -224,7 +221,7 @@
             background: var(--surface);
             border-radius: var(--radius-md);
             box-shadow: var(--shadow-sm);
-            overflow: hidden; /* 角丸のため */
+            overflow: hidden;
         }
         .list-item {
             padding: 18px 20px;
@@ -259,7 +256,6 @@
             height: 100%;
             display: flex;
             flex-direction: column;
-            /* Safe area for landscape */
             padding: calc(var(--safe-top) + 20px) calc(var(--safe-right) + 40px) calc(var(--safe-bottom) + 20px) calc(var(--safe-left) + 40px);
         }
 
@@ -362,6 +358,18 @@
         @media (orientation: portrait) { #rotate-warning { display: flex; } }
 
         @keyframes pulse { 50% { opacity: 0.5; } }
+        
+        /* Debug */
+        #sensor-debug {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.5);
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -436,6 +444,9 @@
 
             <div class="action-area">
                 <button id="btn-start-game" class="btn-primary" disabled onclick="startGameFlow()">ゲームスタート</button>
+                <div style="margin-top:20px; text-align:center; font-size:11px; color:#ccc;" onclick="toggleDebug()">
+                    Ver 4.1 (Double Check)
+                </div>
             </div>
         </div>
     </div>
@@ -480,6 +491,7 @@
             <div class="fb-icon" id="fb-icon">⭕</div>
             <div class="fb-text" id="fb-text">正解！</div>
         </div>
+        <div id="sensor-debug">Z: 0.0</div>
     </div>
 
     <!-- 7. 結果画面 -->
@@ -523,8 +535,11 @@
             timeLeft: 0,
             isPlaying: false,
             
-            // ジャイロ制御（ステートマシン）
-            motionState: 'neutral' 
+            // ジャイロ制御（高度化）
+            motionState: 'neutral', // 'neutral', 'holding', 'triggered', 'cooldown'
+            holdStartTime: 0,
+            holdDirection: null, // 'correct' or 'pass'
+            cooldownEndTime: 0
         };
 
         // --- DOM要素 ---
@@ -545,7 +560,6 @@
 
         // --- 初期化フロー ---
         async function requestInitialPermission() {
-            // iOS 13+ の加速度センサー許可
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
                     const response = await DeviceMotionEvent.requestPermission();
@@ -556,7 +570,6 @@
                     }
                 } catch (e) {
                     console.error(e);
-                    // Android等はエラーになるがそのまま進む
                     initApp();
                 }
             } else {
@@ -566,12 +579,10 @@
 
         async function initApp() {
             try {
-                // ジャンル一覧JSONを取得
                 const res = await fetch(GENRES_FILE);
                 if (!res.ok) throw new Error('Network response was not ok');
                 const genreFiles = await res.json();
                 
-                // 各ジャンル詳細を取得
                 state.genres = await Promise.all(genreFiles.map(async file => {
                     const r = await fetch(`data/${file}`);
                     return r.json();
@@ -637,14 +648,10 @@
         // --- カメラ権限 ---
         async function toggleCamera() {
             const btn = $('btn-camera-toggle');
-            
             if (!state.useCamera) {
-                // ONにしようとした時 -> 許可を求める
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    // 成功したらストリームは一旦止める（ゲーム開始時に再開）
                     stream.getTracks().forEach(t => t.stop());
-                    
                     state.useCamera = true;
                     btn.classList.add('active');
                 } catch (e) {
@@ -653,7 +660,6 @@
                     btn.classList.remove('active');
                 }
             } else {
-                // OFFにする時
                 state.useCamera = false;
                 btn.classList.remove('active');
             }
@@ -661,12 +667,10 @@
 
         // --- ゲーム開始フロー ---
         function startGameFlow() {
-            // フルスクリーン化（可能な場合）
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch(() => {});
             }
 
-            // カメラ準備
             if (state.useCamera) {
                 navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'user' },
@@ -678,7 +682,6 @@
                 $('camera-feed').srcObject = null;
             }
 
-            // 問題準備
             state.questions = [...state.selectedGenre.items].sort(() => Math.random() - 0.5);
             state.qIndex = 0;
             state.correct = [];
@@ -713,11 +716,13 @@
             switchScreen('game');
             state.isPlaying = true;
             state.timeLeft = state.time;
-            state.motionState = 'neutral'; // 初期状態は垂直待ち
+            
+            // 状態リセット
+            state.motionState = 'neutral';
+            state.cooldownEndTime = 0;
             
             updateGameUI();
             
-            // 加速度センサー監視開始
             window.addEventListener('devicemotion', handleMotion);
 
             gameInterval = setInterval(() => {
@@ -738,42 +743,69 @@
             $('question-display').innerText = state.questions[state.qIndex] || '終了';
         }
 
-        // --- 核心：ステートマシンによる判定ロジック ---
+        // --- 高度な判定ロジック ---
         function handleMotion(e) {
             if (!state.isPlaying) return;
 
-            // Z軸加速度（重力含む）
-            // 垂直(画面が前): 0付近 (-2 ~ 2)
-            // 下向き(画面が床): 9.8付近
-            // 上向き(画面が空): -9.8付近
             const z = e.accelerationIncludingGravity.z;
             if (z === null) return;
+            
+            $('sensor-debug').innerText = `Z: ${z.toFixed(2)} | ST: ${state.motionState}`;
+            
+            const now = Date.now();
 
-            // 閾値設定
-            const THRESHOLD_TRIGGER = 6.0; // 反応する角度（深め）
-            const THRESHOLD_RESET = 2.5;   // 戻ったとみなす角度（垂直付近）
-
-            if (state.motionState === 'neutral') {
-                // 1. ニュートラル状態：傾きを待つ
-                if (z > THRESHOLD_TRIGGER) {
-                    // 下（正解）
-                    doAnswer(true);
-                } else if (z < -THRESHOLD_TRIGGER) {
-                    // 上（パス）
-                    doAnswer(false);
+            // 1. 強制クールダウン中（判定後1秒間は無視）
+            if (state.motionState === 'cooldown') {
+                if (now > state.cooldownEndTime) {
+                    state.motionState = 'triggered'; // クールダウン明けは「戻り待ち」へ
                 }
-            } else if (state.motionState === 'triggered') {
-                // 2. 判定済み状態：垂直に戻るのを待つ
-                // Zが -2.5 〜 2.5 の範囲に戻ったらニュートラルへ復帰
+                return;
+            }
+
+            // 閾値（ヒステリシスを持たせる）
+            const THRESHOLD_TRIGGER = 7.0; // しっかり傾ける
+            const THRESHOLD_RESET = 2.0;   // しっかり戻す
+
+            // 2. ニュートラル：判定待ち
+            if (state.motionState === 'neutral') {
+                if (z > THRESHOLD_TRIGGER) {
+                    startHoldCheck('correct');
+                } else if (z < -THRESHOLD_TRIGGER) {
+                    startHoldCheck('pass');
+                }
+            } 
+            // 3. ホールドチェック：一瞬の揺れか、意図的な操作か
+            else if (state.motionState === 'holding') {
+                // 閾値を下回ったらキャンセル
+                if ((state.holdDirection === 'correct' && z < THRESHOLD_TRIGGER) ||
+                    (state.holdDirection === 'pass' && z > -THRESHOLD_TRIGGER)) {
+                    state.motionState = 'neutral';
+                } else {
+                    // 0.2秒キープしたら確定
+                    if (now - state.holdStartTime > 200) {
+                        doAnswer(state.holdDirection === 'correct');
+                    }
+                }
+            }
+            // 4. トリガー済み：垂直に戻るのを待つ
+            else if (state.motionState === 'triggered') {
+                // 垂直付近に戻ったらニュートラルへ
                 if (z > -THRESHOLD_RESET && z < THRESHOLD_RESET) {
                     state.motionState = 'neutral';
                 }
             }
         }
 
+        function startHoldCheck(direction) {
+            state.motionState = 'holding';
+            state.holdDirection = direction;
+            state.holdStartTime = Date.now();
+        }
+
         function doAnswer(isCorrect) {
-            // 一度判定したら、戻るまでロックする
-            state.motionState = 'triggered';
+            // 判定確定
+            state.motionState = 'cooldown';
+            state.cooldownEndTime = Date.now() + 1000; // 1秒間フリーズ
 
             const item = state.questions[state.qIndex];
             
@@ -788,11 +820,9 @@
                 playTone(300, 'triangle', 0.3);
             }
 
-            // 次の問題へ即時切り替え
             state.qIndex++;
             if (state.qIndex >= state.questions.length) state.qIndex = 0;
             
-            // 画面更新は少し遅らせる（フィードバックが見えるように）
             setTimeout(() => {
                 updateGameUI();
                 hideFeedback();
@@ -816,15 +846,13 @@
             clearInterval(gameInterval);
             window.removeEventListener('devicemotion', handleMotion);
 
-            // カメラ停止
             const vid = $('camera-feed');
             if (vid.srcObject) {
                 vid.srcObject.getTracks().forEach(t => t.stop());
             }
 
-            playTone(600, 'sawtooth', 0.5); // 終了音
+            playTone(600, 'sawtooth', 0.5); 
             
-            // 結果表示
             $('result-number').innerText = state.correct.length;
             
             $('result-list-correct').innerHTML = state.correct.length > 0 
@@ -846,7 +874,6 @@
             switchScreen('result');
         }
 
-        // --- 簡易サウンド再生 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playTone(freq, type, dur) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -859,6 +886,11 @@
             osc.start();
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
             osc.stop(audioCtx.currentTime + dur);
+        }
+        
+        function toggleDebug() {
+            const d = $('sensor-debug');
+            d.style.display = d.style.display === 'block' ? 'none' : 'block';
         }
 
     </script>
