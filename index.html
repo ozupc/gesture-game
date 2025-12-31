@@ -3,13 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <!-- PWA用設定（ホーム画面に追加した時にアプリとして振る舞う） -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#000000">
-
-    <title>ジェスチャーゲーム改</title>
+    <meta name="theme-color" content="#121212">
+    <title>ジェスチャーゲーム</title>
     <style>
         :root {
             --bg: #121212;
@@ -19,6 +16,10 @@
             --pass: #FF9F0A;
             --danger: #FF453A;
             --card-bg: #1C1C1E;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+            --safe-left: env(safe-area-inset-left);
+            --safe-right: env(safe-area-inset-right);
         }
 
         * {
@@ -31,31 +32,32 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro JP", "Hiragino Kaku Gothic ProN", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: var(--bg);
             color: var(--text);
+            /* アドレスバー対策のキモ: 動的高さ(dvh)で固定し、スクロールを禁止 */
             width: 100vw;
-            height: 100dvh; /* 動的なビューポート高さに対応 */
-            overflow: hidden; /* 全体スクロール禁止 */
+            height: 100dvh;
+            overflow: hidden;
             position: fixed;
             inset: 0;
         }
 
-        /* 共通レイアウト */
+        /* 画面共通設定 */
         .screen {
             position: absolute;
             inset: 0;
             display: none;
             flex-direction: column;
             background: var(--bg);
-            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
             z-index: 10;
         }
 
         .screen.active { display: flex; }
 
-        /* コンテンツエリア（スクロール可能） */
-        .scrollable-content {
+        /* スクロールエリア */
+        .content-scroll {
             flex: 1;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
@@ -65,318 +67,300 @@
             align-items: center;
         }
 
-        /* ホーム画面 */
-        .title-area {
-            text-align: center;
-            margin-top: 40px;
-            margin-bottom: 40px;
-        }
-        .title-area h1 { font-size: 32px; margin-bottom: 10px; }
-        .title-area p { color: #888; font-size: 14px; }
-
+        /* UIパーツ */
+        h1 { font-size: 28px; margin: 20px 0 10px; text-align: center; }
+        
         .menu-card {
             width: 100%;
-            max-width: 400px;
+            max-width: 500px;
             background: var(--card-bg);
             border-radius: 16px;
-            padding: 20px;
+            padding: 10px;
             margin-bottom: 20px;
         }
 
-        .setting-row {
+        .menu-btn {
+            width: 100%;
+            padding: 16px;
+            background: none;
+            border: none;
+            border-bottom: 1px solid #333;
+            color: white;
+            font-size: 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 16px 0;
-            border-bottom: 1px solid #333;
             cursor: pointer;
         }
-        .setting-row:last-child { border-bottom: none; }
-        
-        .setting-label { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: bold; }
-        .setting-value { color: var(--accent); font-size: 16px; display: flex; align-items: center; gap: 5px; }
+        .menu-btn:last-child { border-bottom: none; }
+        .menu-btn:active { background: #333; }
+        .val { color: var(--accent); font-weight: bold; }
 
-        .btn-primary {
+        /* 改善された録画ボタン */
+        .rec-btn-large {
             width: 100%;
-            max-width: 400px;
             padding: 16px;
+            margin-top: 10px;
+            border-radius: 12px;
+            border: 2px solid #333;
+            background: var(--card-bg);
+            color: #888;
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .rec-btn-large.active {
+            border-color: var(--danger);
+            background: rgba(255, 69, 58, 0.1);
+            color: var(--danger);
+        }
+        .rec-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #555;
+        }
+        .rec-btn-large.active .rec-dot { background: var(--danger); }
+
+        .btn-start {
+            width: 100%;
+            max-width: 500px;
+            margin-top: 20px;
+            padding: 18px;
             background: var(--accent);
             color: white;
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-        .btn-primary:active { transform: scale(0.96); }
-        .btn-primary:disabled { background: #555; color: #888; }
-
-        /* リスト選択画面 */
-        .list-container {
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .list-item {
-            background: var(--card-bg);
-            padding: 16px;
-            margin-bottom: 2px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
             cursor: pointer;
         }
-        .list-item:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
-        .list-item:last-child { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
-        .list-item.selected { color: var(--accent); }
+        .btn-start:disabled { background: #444; color: #888; box-shadow: none; }
+        .btn-start:active { transform: scale(0.98); }
 
-        /* ゲーム画面（全画面、スクロールなし） */
+        /* ゲーム画面（完全固定・スクロールなし） */
         #game-screen {
             background: #000;
             overflow: hidden;
-            touch-action: none;
         }
 
-        .camera-layer {
+        .camera-feed {
             position: absolute;
             inset: 0;
-            z-index: 0;
-            opacity: 0.3;
-        }
-        .camera-layer video {
             width: 100%;
             height: 100%;
             object-fit: cover;
             transform: scaleX(-1);
+            opacity: 0.4;
+            z-index: 0;
         }
 
-        .game-ui-layer {
-            position: absolute;
-            inset: 0;
+        .game-ui {
+            position: relative;
             z-index: 10;
+            flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 10px;
-            padding-left: max(20px, env(safe-area-inset-left));
-            padding-right: max(20px, env(safe-area-inset-right));
+            /* 画面端の誤タップ防止の余白 */
+            padding: 10px 40px; 
         }
 
         .game-header {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             font-size: 24px;
             font-weight: bold;
-            padding: 10px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 0 2px 4px black;
         }
-        
-        .timer.urgent { color: var(--danger); animation: pulse 0.5s infinite; }
+        .timer-box.urgent { color: var(--danger); animation: pulse 0.5s infinite; }
 
-        .question-box {
+        .question-area {
             flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
         }
 
-        .question-text {
-            font-size: clamp(40px, 12vw, 100px);
+        .q-text {
+            font-size: clamp(40px, 15vw, 110px);
             font-weight: 800;
             text-align: center;
             line-height: 1.1;
-            text-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            text-shadow: 0 4px 10px black;
             word-break: keep-all;
         }
 
-        .feedback-overlay {
+        /* 判定フィードバック */
+        .feedback {
             position: absolute;
             inset: 0;
-            z-index: 20;
+            z-index: 50;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-weight: 900;
-            font-size: 80px;
+            background: rgba(0,0,0,0.85);
             opacity: 0;
-            transition: opacity 0.2s;
             pointer-events: none;
+            transition: opacity 0.1s;
         }
-        .feedback-overlay.correct { background: rgba(48, 209, 88, 0.9); }
-        .feedback-overlay.pass { background: rgba(255, 159, 10, 0.9); }
-        .feedback-overlay.show { opacity: 1; }
+        .feedback.show { opacity: 1; }
+        .feedback.correct { background: rgba(48, 209, 88, 0.9); }
+        .feedback.pass { background: rgba(255, 159, 10, 0.9); }
+        .fb-icon { font-size: 100px; margin-bottom: 20px; }
+        .fb-text { font-size: 40px; font-weight: bold; color: white; }
 
-        /* デバッグ表示 */
-        #debug-info {
+        /* ガイド・警告 */
+        .guide-text {
             position: absolute;
-            bottom: 10px;
-            left: 10px;
-            font-size: 10px;
-            color: lime;
-            font-family: monospace;
-            z-index: 100;
-            background: rgba(0,0,0,0.5);
-            padding: 4px;
-            pointer-events: none;
-            display: none; /* デフォルト非表示 */
+            bottom: 20px;
+            right: 20px;
+            text-align: right;
+            font-size: 14px;
+            color: rgba(255,255,255,0.6);
+            line-height: 1.6;
         }
-
-        /* 縦画面警告 */
+        
         #rotate-warning {
             position: fixed;
             inset: 0;
-            background: var(--bg);
+            background: #000;
             z-index: 9999;
             display: none;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             text-align: center;
         }
-        @media (orientation: portrait) {
-            #rotate-warning { display: flex; }
-        }
-        .rotate-icon { font-size: 50px; margin-bottom: 20px; animation: rotate 2s infinite; }
-        @keyframes rotate { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } }
+        @media (orientation: portrait) { #rotate-warning { display: flex; } }
 
-        /* カウントダウン */
-        #countdown-overlay {
-            position: fixed;
-            inset: 0;
-            background: var(--bg);
-            z-index: 50;
+        /* リストスタイル */
+        .list-row {
+            padding: 15px;
+            background: var(--card-bg);
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 600px;
+        }
+        .list-row.selected { color: var(--accent); }
+
+        /* センサーデバッグ */
+        #debug {
+            position: absolute;
+            bottom: 5px; left: 5px;
+            font-size: 10px; color: lime;
+            z-index: 100;
+            font-family: monospace;
             display: none;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
         }
-        .count-num { font-size: 150px; font-weight: bold; color: var(--accent); }
-        .count-sub { font-size: 20px; margin-top: 20px; color: #888; }
-
     </style>
 </head>
 <body>
 
-    <!-- 縦画面時の警告 -->
+    <!-- 縦画面警告 -->
     <div id="rotate-warning">
-        <div class="rotate-icon">📱</div>
-        <h2>スマホを横向きにしてください</h2>
-        <p style="margin-top:10px; color:#888;">このゲームは横画面専用です</p>
+        <div style="font-size:50px;">📱</div>
+        <p style="margin-top:15px; font-weight:bold;">スマホを横向きにしてください</p>
     </div>
-
-    <!-- センサーデバッグ用 -->
-    <div id="debug-info">Sensor Init...</div>
 
     <!-- ホーム画面 -->
     <div id="screen-home" class="screen active">
-        <div class="scrollable-content">
-            <div class="title-area">
-                <h1>🎭 ジェスチャーゲーム</h1>
-                <p>スマホをおでこに当ててプレイ！</p>
-            </div>
+        <div class="content-scroll">
+            <h1>🎭 ジェスチャーゲーム</h1>
+            <p style="color:#888; margin-bottom:30px;">スマホをおでこに当てて垂直に構えます</p>
 
             <div class="menu-card">
-                <div class="setting-row" id="btn-genre">
-                    <span class="setting-label">📁 ジャンル</span>
-                    <span class="setting-value" id="disp-genre">選択 ></span>
-                </div>
-                <div class="setting-row" id="btn-time">
-                    <span class="setting-label">⏱️ 制限時間</span>
-                    <span class="setting-value" id="disp-time">60秒 ></span>
-                </div>
-                <div class="setting-row" id="btn-camera" style="border:none;">
-                    <span class="setting-label">📹 録画</span>
-                    <label style="position:relative; width:50px; height:30px; background:#333; border-radius:15px; cursor:pointer;">
-                        <input type="checkbox" id="chk-camera" style="opacity:0;">
-                        <div id="toggle-circle" style="position:absolute; top:2px; left:2px; width:26px; height:26px; background:white; border-radius:50%; transition:0.3s;"></div>
-                    </label>
-                </div>
+                <button class="menu-btn" onclick="openGenre()">
+                    <span>📁 ジャンル</span>
+                    <span class="val" id="val-genre">未選択</span>
+                </button>
+                <button class="menu-btn" onclick="openTime()">
+                    <span>⏱️ 制限時間</span>
+                    <span class="val" id="val-time">60秒</span>
+                </button>
             </div>
 
-            <button id="btn-start" class="btn-primary" disabled>ゲームスタート</button>
-            <p style="margin-top:20px; font-size:12px; color:#555;" id="debug-trigger">ver 2.0 (Sensor Fix)</p>
+            <button id="btn-rec" class="rec-btn-large" onclick="toggleRec()">
+                <div class="rec-dot"></div>
+                <span id="txt-rec">録画しない</span>
+            </button>
+
+            <button id="btn-start" class="btn-start" disabled onclick="tryStart()">ゲームスタート</button>
+            
+            <div style="margin-top:30px; font-size:12px; color:#555;" onclick="toggleDebug()">
+                Ver 3.0 (Gravity Logic)
+            </div>
+            
+            <!-- iOS向けPWAヒント -->
+            <div id="ios-hint" style="display:none; margin-top:20px; background:#222; padding:15px; border-radius:10px; font-size:13px; color:#aaa;">
+                💡 画面のタブが邪魔な場合<br>
+                ブラウザの[共有]ボタンから「ホーム画面に追加」を行うと全画面で遊べます。
+            </div>
         </div>
     </div>
 
-    <!-- ジャンル選択画面 -->
-    <div id="screen-genre" class="screen">
-        <div style="padding: 10px; display:flex; align-items:center;">
-            <button class="setting-value" id="back-genre" style="background:none; border:none; font-size:16px;">← 戻る</button>
-            <span style="flex:1; text-align:center; font-weight:bold;">ジャンル選択</span>
+    <!-- 設定画面 -->
+    <div id="screen-list" class="screen">
+        <div style="padding:10px; display:flex; align-items:center;">
+            <button onclick="goHome()" style="background:none; border:none; color:var(--accent); font-size:16px;">キャンセル</button>
+            <span style="flex:1; text-align:center; font-weight:bold;" id="list-title">設定</span>
             <span style="width:60px;"></span>
         </div>
-        <div class="scrollable-content">
-            <div id="list-genre" class="list-container"></div>
-        </div>
-    </div>
-
-    <!-- 時間選択画面 -->
-    <div id="screen-time" class="screen">
-        <div style="padding: 10px; display:flex; align-items:center;">
-            <button class="setting-value" id="back-time" style="background:none; border:none; font-size:16px;">← 戻る</button>
-            <span style="flex:1; text-align:center; font-weight:bold;">時間選択</span>
-            <span style="width:60px;"></span>
-        </div>
-        <div class="scrollable-content">
-            <div id="list-time" class="list-container"></div>
-        </div>
+        <div class="content-scroll" id="list-content"></div>
     </div>
 
     <!-- カウントダウン -->
-    <div id="countdown-overlay">
-        <div class="count-num" id="count-val">3</div>
-        <p class="count-sub">スマホをおでこに当ててください</p>
+    <div id="screen-count" class="screen" style="justify-content:center; align-items:center;">
+        <div style="font-size:120px; font-weight:bold; color:var(--accent);" id="count-num">3</div>
+        <p style="color:#888; margin-top:20px;">スマホを垂直に構えてください</p>
     </div>
 
     <!-- ゲーム画面 -->
     <div id="game-screen" class="screen">
-        <div class="camera-layer">
-            <video id="camera-feed" autoplay playsinline muted></video>
-        </div>
-        
-        <div class="game-ui-layer">
+        <video id="video-bg" class="camera-feed" autoplay playsinline muted></video>
+        <div class="game-ui">
             <div class="game-header">
-                <div class="timer" id="game-timer">60</div>
-                <div class="score">正解: <span id="game-score">0</span></div>
+                <div class="timer-box" id="timer">60</div>
+                <div>正解: <span id="score">0</span></div>
             </div>
-            
-            <div class="question-box">
-                <div class="question-text" id="game-question">準備中...</div>
+            <div class="question-area">
+                <div class="q-text" id="question">Ready?</div>
             </div>
-
-            <div style="text-align:right; font-size:14px; opacity:0.7;">
-                <div>下へ傾けて正解 ⭕</div>
-                <div>上へ傾けてパス ⏭️</div>
+            <div class="guide-text">
+                画面を下(地面)へ → 正解<br>
+                画面を上(空)へ → パス
             </div>
         </div>
-
-        <div id="feedback-overlay" class="feedback-overlay">
-            <div id="feedback-icon">⭕</div>
-            <div id="feedback-text">正解！</div>
+        <div id="feedback" class="feedback">
+            <div class="fb-icon" id="fb-icon">⭕</div>
+            <div class="fb-text" id="fb-text">正解！</div>
         </div>
+        <div id="debug">Wait...</div>
     </div>
 
     <!-- 結果画面 -->
     <div id="screen-result" class="screen">
-        <div class="scrollable-content">
+        <div class="content-scroll">
             <h2>結果発表</h2>
-            <div style="font-size:60px; font-weight:bold; color:var(--accent); margin: 20px 0;">
-                <span id="res-score">0</span><span style="font-size:20px; color:#fff;"> 問正解</span>
+            <div style="font-size:60px; font-weight:bold; color:var(--accent); margin:20px;">
+                <span id="res-score">0</span><span style="font-size:24px; color:white;"> 問</span>
             </div>
-
-            <div style="display:flex; gap:20px; width:100%; max-width:400px; margin-bottom:20px;">
-                <button id="btn-home" class="btn-primary" style="background:#333;">ホームへ</button>
-            </div>
-
-            <div class="list-container" style="width:100%;">
-                <h3 style="margin-bottom:10px; font-size:16px; color:#888;">正解したお題</h3>
-                <div id="res-list-correct"></div>
-                
-                <h3 style="margin:20px 0 10px; font-size:16px; color:#888;">パスしたお題</h3>
-                <div id="res-list-pass"></div>
+            <button class="btn-start" onclick="goHome()" style="background:#333; margin-bottom:20px;">ホームに戻る</button>
+            
+            <div style="width:100%; max-width:600px;">
+                <h3 style="color:#888; font-size:14px; margin:10px;">正解</h3>
+                <div id="list-correct"></div>
+                <h3 style="color:#888; font-size:14px; margin:20px 0 10px;">パス</h3>
+                <div id="list-pass"></div>
             </div>
         </div>
     </div>
@@ -387,445 +371,320 @@
             <div style="font-size:40px; margin-bottom:10px;">📱</div>
             <h3 style="margin-bottom:10px;">センサーの許可</h3>
             <p style="font-size:14px; color:#aaa; margin-bottom:20px;">ゲームをプレイするには傾きセンサーへのアクセス許可が必要です。</p>
-            <button id="btn-perm" class="btn-primary">許可する</button>
+            <button onclick="grantPerm()" class="btn-start" style="margin-top:0;">許可する</button>
         </div>
     </div>
 
     <script>
-        // --- 設定データ ---
-        const GENRES_URL = 'data/genres.json';
-        
-        // --- アプリの状態 ---
-        const state = {
-            genres: [],
-            selectedGenre: null,
+        // --- 設定 ---
+        const GENRES = [
+            {id:'animals.json', name:'動物', icon:'🐾'},
+            {id:'sports.json', name:'スポーツ', icon:'⚽'},
+            {id:'food.json', name:'食べ物', icon:'🍣'},
+            {id:'jobs.json', name:'職業', icon:'👮'},
+            {id:'actions.json', name:'動作', icon:'💃'}
+        ];
+
+        // --- 状態管理 ---
+        let state = {
+            genre: null,
             time: 60,
-            useCamera: false,
-            
-            // ゲーム内状態
-            questions: [],
-            qIndex: 0,
-            correctItems: [],
-            passItems: [],
-            timer: null,
+            rec: false,
+            items: [],
+            index: 0,
+            correct: [],
+            pass: [],
             timeLeft: 0,
-            isPlaying: false,
-            isCooldown: false,
-            
-            // センサー関連
-            baseAngle: null, // 基準角度（おでこに当てた時の角度）
-            lastAngle: 0,
-            threshold: 25,   // 判定閾値（度）
-            orientationPermitted: false
+            playing: false,
+            cooldown: false,
+            permitted: false
         };
 
         // --- DOM要素 ---
-        const els = {
-            screens: {
-                home: document.getElementById('screen-home'),
-                genre: document.getElementById('screen-genre'),
-                time: document.getElementById('screen-time'),
-                game: document.getElementById('game-screen'),
-                result: document.getElementById('screen-result')
-            },
-            home: {
-                genre: document.getElementById('disp-genre'),
-                time: document.getElementById('disp-time'),
-                cameraChk: document.getElementById('chk-camera'),
-                toggle: document.getElementById('toggle-circle'),
-                startBtn: document.getElementById('btn-start')
-            },
-            lists: {
-                genre: document.getElementById('list-genre'),
-                time: document.getElementById('list-time'),
-                resCorrect: document.getElementById('res-list-correct'),
-                resPass: document.getElementById('res-list-pass')
-            },
-            game: {
-                timer: document.getElementById('game-timer'),
-                score: document.getElementById('game-score'),
-                question: document.getElementById('game-question'),
-                video: document.getElementById('camera-feed'),
-                feedback: document.getElementById('feedback-overlay'),
-                fbIcon: document.getElementById('feedback-icon'),
-                fbText: document.getElementById('feedback-text')
-            },
-            countdown: document.getElementById('countdown-overlay'),
-            countVal: document.getElementById('count-val'),
-            debug: document.getElementById('debug-info'),
-            permModal: document.getElementById('modal-perm')
-        };
-
-        // --- 音声管理 ---
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playTone(freq, type, duration) {
-            if(audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.value = freq;
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
-            osc.stop(audioCtx.currentTime + duration);
-        }
-
-        const sounds = {
-            ok: () => { playTone(880, 'sine', 0.1); setTimeout(()=>playTone(1760, 'sine', 0.2), 100); },
-            pass: () => { playTone(300, 'triangle', 0.3); },
-            count: () => { playTone(600, 'sine', 0.1); },
-            start: () => { playTone(1200, 'square', 0.5); },
-            end: () => { playTone(200, 'sawtooth', 0.8); }
+        const $ = id => document.getElementById(id);
+        const screens = ['home', 'list', 'count', 'game', 'result'];
+        const showScreen = name => {
+            screens.forEach(s => $(`screen-${s}`).classList.remove('active'));
+            $(`screen-${name}`).classList.add('active');
         };
 
         // --- 初期化 ---
-        async function init() {
-            try {
-                // ジャンル読み込み
-                const res = await fetch(GENRES_URL);
-                const files = await res.json();
-                state.genres = await Promise.all(files.map(async f => {
-                    const r = await fetch(`data/${f}`);
-                    return await r.json();
-                }));
-                
-                renderGenreList();
-                renderTimeList();
-                
-            } catch(e) {
-                alert('データ読み込みエラー: ' + e);
-            }
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if(isIOS && !window.navigator.standalone) $('ios-hint').style.display = 'block';
 
-            // イベントリスナー設定
-            document.getElementById('btn-genre').onclick = () => changeScreen('genre');
-            document.getElementById('btn-time').onclick = () => changeScreen('time');
-            document.getElementById('back-genre').onclick = () => changeScreen('home');
-            document.getElementById('back-time').onclick = () => changeScreen('home');
-            
-            document.getElementById('btn-camera').onclick = (e) => {
-                if(e.target.tagName === 'INPUT') return; // バブリング防止
-                els.home.cameraChk.checked = !els.home.cameraChk.checked;
-                updateCameraToggle();
-            };
-            els.home.cameraChk.onchange = updateCameraToggle;
-            
-            els.home.startBtn.onclick = tryStartGame;
-            document.getElementById('btn-home').onclick = () => changeScreen('home');
-            
-            // 許可ボタン
-            document.getElementById('btn-perm').onclick = async () => {
-                try {
-                    const permission = await DeviceOrientationEvent.requestPermission();
-                    if (permission === 'granted') {
-                        state.orientationPermitted = true;
-                        els.permModal.style.display = 'none';
-                        startGameSequence();
-                    } else {
-                        alert('センサーの使用が拒否されました。設定を確認してください。');
-                    }
-                } catch(e) {
-                    console.error(e);
-                    // Android等はここに来る
-                    state.orientationPermitted = true;
-                    els.permModal.style.display = 'none';
-                    startGameSequence();
-                }
-            };
-            
-            // デバッグ表示トグル
-            let debugClicks = 0;
-            document.getElementById('debug-trigger').onclick = () => {
-                debugClicks++;
-                if(debugClicks > 5) els.debug.style.display = 'block';
-            };
-        }
-
-        function updateCameraToggle() {
-            state.useCamera = els.home.cameraChk.checked;
-            els.home.toggle.style.transform = state.useCamera ? 'translateX(20px)' : 'translateX(0)';
-            els.home.toggle.style.background = state.useCamera ? 'var(--success)' : 'white';
-        }
-
-        function changeScreen(id) {
-            Object.values(els.screens).forEach(s => s.classList.remove('active'));
-            els.screens[id].classList.add('active');
-        }
-
-        function renderGenreList() {
-            els.lists.genre.innerHTML = state.genres.map(g => `
-                <div class="list-item ${state.selectedGenre?.id === g.id ? 'selected' : ''}" 
-                     onclick="selectGenre('${g.id}')">
+        // --- 設定操作 ---
+        function openGenre() {
+            $('list-title').innerText = 'ジャンル選択';
+            $('list-content').innerHTML = GENRES.map(g => `
+                <div class="list-row ${state.genre?.id === g.id ? 'selected' : ''}" 
+                     onclick="setGenre('${g.id}')">
                     <span>${g.icon} ${g.name}</span>
-                    <span>${state.selectedGenre?.id === g.id ? '✔' : ''}</span>
+                    <span>${state.genre?.id === g.id ? '✔' : ''}</span>
                 </div>
             `).join('');
+            showScreen('list');
         }
 
-        window.selectGenre = (id) => {
-            state.selectedGenre = state.genres.find(g => g.id === id);
-            els.home.genre.innerText = state.selectedGenre.name;
-            els.home.startBtn.disabled = false;
-            renderGenreList();
-            changeScreen('home');
-        };
+        async function setGenre(id) {
+            state.genre = GENRES.find(g => g.id === id);
+            $('val-genre').innerText = state.genre.name;
+            try {
+                // データ読み込み
+                const res = await fetch(`data/${id}`);
+                const data = await res.json();
+                state.items = data.items;
+                $('btn-start').disabled = false;
+                goHome();
+            } catch(e) {
+                alert('データ読み込みに失敗しました\n' + e);
+            }
+        }
 
-        function renderTimeList() {
+        function openTime() {
+            $('list-title').innerText = '制限時間';
             const times = [30, 60, 90, 120, 180];
-            els.lists.time.innerHTML = times.map(t => `
-                <div class="list-item ${state.time === t ? 'selected' : ''}" 
-                     onclick="selectTime(${t})">
-                    <span>${t}秒 (${t/60}分)</span>
+            $('list-content').innerHTML = times.map(t => `
+                <div class="list-row ${state.time === t ? 'selected' : ''}" 
+                     onclick="setTime(${t})">
+                    <span>${t}秒</span>
                     <span>${state.time === t ? '✔' : ''}</span>
                 </div>
             `).join('');
+            showScreen('list');
         }
 
-        window.selectTime = (t) => {
+        function setTime(t) {
             state.time = t;
-            els.home.time.innerText = t + '秒';
-            renderTimeList();
-            changeScreen('home');
-        };
+            $('val-time').innerText = t + '秒';
+            goHome();
+        }
 
-        // --- ゲーム開始処理 ---
-        function tryStartGame() {
-            // フルスクリーン化（ユーザー操作が必要）
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(e => console.log('Fullscreen failed', e));
-            }
-
-            // iOS 13+ のセンサー許可確認
-            if (typeof DeviceOrientationEvent !== 'undefined' && 
-                typeof DeviceOrientationEvent.requestPermission === 'function' && 
-                !state.orientationPermitted) {
-                els.permModal.style.display = 'flex';
+        function toggleRec() {
+            state.rec = !state.rec;
+            const btn = $('btn-rec');
+            if(state.rec) {
+                btn.classList.add('active');
+                $('txt-rec').innerText = '録画する';
             } else {
-                startGameSequence();
+                btn.classList.remove('active');
+                $('txt-rec').innerText = '録画しない';
             }
         }
 
-        async function startGameSequence() {
-            // カメラ準備
-            if (state.useCamera) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-                    els.game.video.srcObject = stream;
-                } catch(e) {
-                    console.error("Camera fail", e);
-                }
-            } else {
-                els.game.video.srcObject = null;
+        function goHome() { showScreen('home'); }
+
+        // --- ゲーム開始プロセス ---
+        function tryStart() {
+            // フルスクリーン試行 (Android向け)
+            if(document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(()=>{});
             }
 
-            // 問題セットアップ
-            state.questions = [...state.selectedGenre.items].sort(() => Math.random() - 0.5);
-            state.qIndex = 0;
-            state.correctItems = [];
-            state.passItems = [];
-            
-            // カウントダウン開始
-            els.countdown.style.display = 'flex';
-            let count = 3;
-            els.countVal.innerText = count;
-            sounds.count();
-            
-            const countInt = setInterval(() => {
-                count--;
-                if(count > 0) {
-                    els.countVal.innerText = count;
-                    sounds.count();
+            if(typeof DeviceMotionEvent !== 'undefined' && 
+               typeof DeviceMotionEvent.requestPermission === 'function' && 
+               !state.permitted) {
+                $('modal-perm').style.display = 'flex';
+            } else {
+                startCount();
+            }
+        }
+
+        function grantPerm() {
+            DeviceMotionEvent.requestPermission().then(res => {
+                if(res === 'granted') {
+                    state.permitted = true;
+                    $('modal-perm').style.display = 'none';
+                    startCount();
                 } else {
-                    clearInterval(countInt);
-                    els.countdown.style.display = 'none';
-                    startMainGame();
+                    alert('許可が必要です');
+                }
+            }).catch(e => {
+                console.error(e);
+                // Android等はここ
+                state.permitted = true;
+                $('modal-perm').style.display = 'none';
+                startCount();
+            });
+        }
+
+        // --- カウントダウン ---
+        function startCount() {
+            // カメラ起動
+            if(state.rec) {
+                navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false})
+                .then(stream => $('video-bg').srcObject = stream)
+                .catch(e => console.log('Camera fail', e));
+            } else {
+                $('video-bg').srcObject = null;
+            }
+
+            showScreen('count');
+            let c = 3;
+            $('count-num').innerText = c;
+            playSound(440, 'sine');
+            
+            let timer = setInterval(() => {
+                c--;
+                if(c > 0) {
+                    $('count-num').innerText = c;
+                    playSound(440, 'sine');
+                } else {
+                    clearInterval(timer);
+                    startGame();
                 }
             }, 1000);
         }
 
-        // --- メインゲームループ ---
-        function startMainGame() {
-            changeScreen('game');
-            state.isPlaying = true;
+        // --- ゲームメイン ---
+        let gameTimer;
+        
+        function startGame() {
+            // 変数リセット
+            state.items = state.items.sort(() => Math.random() - 0.5);
+            state.index = 0;
+            state.correct = [];
+            state.pass = [];
             state.timeLeft = state.time;
-            state.baseAngle = null; // 基準リセット
-            
-            sounds.start();
-            updateQuestion();
-            updateTimerUI();
-            
-            // センサー監視開始
-            window.addEventListener('deviceorientation', handleOrientation);
+            state.playing = true;
+            state.cooldown = false;
 
-            // タイマー
-            state.timer = setInterval(() => {
+            showScreen('game');
+            playSound(880, 'square');
+            updateUI();
+            
+            // センサー開始 (DeviceMotion = 加速度/重力)
+            window.addEventListener('devicemotion', handleMotion);
+
+            gameTimer = setInterval(() => {
                 state.timeLeft--;
-                updateTimerUI();
-                if(state.timeLeft <= 5) els.game.timer.classList.add('urgent');
-                else els.game.timer.classList.remove('urgent');
+                updateUI();
+                if(state.timeLeft <= 5) $('timer').classList.add('urgent');
+                else $('timer').classList.remove('urgent');
 
-                if(state.timeLeft <= 0) endGame();
+                if(state.timeLeft <= 0) finishGame();
             }, 1000);
         }
 
-        function updateQuestion() {
-            if(state.qIndex >= state.questions.length) state.qIndex = 0; // ループ
-            els.game.question.innerText = state.questions[state.qIndex];
-            // 新しい問題が出たら、その瞬間の角度を基準にするのではなく、
-            // 「判定済み」フラグを下ろすだけで、基準角度は「おでこに当てて安定した位置」を維持すべきだが、
-            // 簡易化のため「正解後、戻ってきたらリセット」する方式をとる
+        function updateUI() {
+            $('timer').innerText = state.timeLeft;
+            $('score').innerText = state.correct.length;
+            $('question').innerText = state.items[state.index] || '終了';
         }
 
-        function updateTimerUI() {
-            els.game.timer.innerText = state.timeLeft;
-            els.game.score.innerText = state.correctItems.length;
-        }
+        // --- 核心：重力による判定ロジック ---
+        // 垂直基準にしたい場合、加速度(重力)を見るのが一番確実です。
+        // accelerationIncludingGravity
+        // Z軸: 画面と垂直方向。画面が空を向くとマイナス、地面を向くとプラス。
+        // Y軸/X軸: 画面の縦横方向。垂直に立てるとどちらかが9.8になる。
+        function handleMotion(e) {
+            if(!state.playing || state.cooldown) return;
 
-        // --- 核心：傾き判定 ---
-        function handleOrientation(e) {
-            if(!state.isPlaying || state.isCooldown) return;
+            const acc = e.accelerationIncludingGravity;
+            if(!acc) return;
 
-            // 横向きの場合、お辞儀方向（長辺の回転）は gamma に出る。
-            // しかし、iOSとAndroidで符号が逆だったり、90度を超えると反転したりする。
-            
-            // 最も堅牢な方法：
-            // スマホが垂直（おでこ）にあるとき、Gamma はおよそ +/- 90度（または0度付近、持ち方による）。
-            // Beta はおよそ 0度。
-            
-            // ここではシンプルに「現在のGamma値」を監視し、
-            // ゲーム開始直後(または判定復帰後)の値を「基準(Zero)」とする。
-            
-            let angle = e.gamma; 
-            // ※もし端末が縦持ちなら beta を使うべきだが、横持ち前提とする。
+            const z = acc.z || 0;
             // Debug
-            els.debug.innerText = `B:${Math.round(e.beta)} G:${Math.round(e.gamma)} Base:${Math.round(state.baseAngle)}`;
+            $('debug').innerText = `Z: ${z.toFixed(1)}`;
 
-            if (angle === null) return;
+            // 判定閾値 (m/s^2)
+            // Zが約9.8なら画面は真下(地面)。
+            // Zが約-9.8なら画面は真上(空)。
+            // Zが約0なら画面は垂直。
 
-            // 基準がなければ設定（これがキャリブレーション）
-            if (state.baseAngle === null) {
-                // 安定するまで待つのも手だが、即時設定
-                state.baseAngle = angle;
-                return;
+            // 1. 正解判定 (画面を地面に向ける)
+            // 少し傾けただけで反応するように z > 6 くらい (垂直は0~2くらい)
+            if (z > 6.0) { 
+                answer(true);
             }
-
-            const diff = angle - state.baseAngle;
-
-            // 判定ロジック
-            // 一般的に、横持ちでおでこから「下（床）」へ画面を向けると、Gamma値は変化する。
-            // 変化量が閾値を超えたら判定。
-            
-            if (Math.abs(diff) > state.threshold) {
-                // どっちが正解でどっちがパスか？
-                // 実際に動かすと、機種によるが
-                // 画面を伏せる（正解）→ 値が大きく変化
-                // 画面を空へ（パス）→ 逆へ変化
-                
-                // 多くのデバイスで、
-                // 初期(90度付近) -> 画面下向ける -> 0度へ向かう (差分マイナス or プラス)
-                // これは実機で符号がまちまちなので、
-                // 「大きく動いた」ことだけ検知し、一旦「正解」とする簡易モードか、
-                // または「上」「下」を厳密に分けるか。
-                
-                // 今回は「下（正解）」「上（パス）」を分けたい。
-                // 画面を手前に倒す（下を見る）と Gamma は 0 に近づく（絶対値が減る）。
-                // 画面を後ろに逸らす（上を見る）と Gamma は 90 を超える、または逆側へ。
-                
-                // 簡易判定：
-                // diff > threshold  => A
-                // diff < -threshold => B
-                
-                // iPhone(横左): 直立=-90, 下へ傾ける= -45 (diff +45) -> 正解
-                // Android(横左): 直立=90, 下へ傾ける= 45 (diff -45) -> 正解
-                // ※この符号問題が厄介。
-                
-                // ★解決策:
-                // 「絶対値が減る方向（0に近づく）」＝「画面が水平（床）に近づく」＝「正解（下）」
-                // 「絶対値が増える方向（垂直を超える）」＝「パス（上）」
-                
-                const absCurrent = Math.abs(angle);
-                const absBase = Math.abs(state.baseAngle);
-                
-                if (absCurrent < absBase - state.threshold) {
-                    // 床に近づいた -> 正解
-                    triggerAnswer(true);
-                } else if (absCurrent > absBase + state.threshold) {
-                    // 天井に向いた -> パス
-                    triggerAnswer(false);
-                }
+            // 2. パス判定 (画面を空に向ける)
+            // おでこに乗せたまま空に向ける -> z < -6
+            else if (z < -6.0) {
+                answer(false);
             }
         }
 
-        function triggerAnswer(isCorrect) {
-            state.isCooldown = true;
-            const item = state.questions[state.qIndex];
+        function answer(isCorrect) {
+            state.cooldown = true;
+            const item = state.items[state.index];
 
-            if (isCorrect) {
-                state.correctItems.push(item);
-                sounds.ok();
+            if(isCorrect) {
+                state.correct.push(item);
+                playSound(1200, 'sine'); // ピンポン
                 showFeedback('correct', '⭕ 正解！');
             } else {
-                state.passItems.push(item);
-                sounds.pass();
+                state.pass.push(item);
+                playSound(300, 'triangle'); // ブブー
                 showFeedback('pass', '⏭️ パス');
             }
 
             // 次の問題へ
             setTimeout(() => {
-                state.qIndex++;
-                updateQuestion();
+                state.index++;
+                if(state.index >= state.items.length) state.index = 0;
+                updateUI();
                 hideFeedback();
-                
-                // クールダウン解除＆基準角度リセット（重要：ユーザーが頭を戻した位置を新基準にする）
-                // ただし即座にリセットすると、戻る動作で逆判定されるので、
-                // 「安定待ち」を入れるのが理想だが、簡易的に
-                // 「1秒間は判定しない」かつ「その後の最初の値を新基準にする」
+
+                // ユーザーが垂直(ニュートラル)に戻すのを待つ
+                // 単純なタイマーではなく、Z軸が0付近に戻るのを待つロジックを入れると完璧だが、
+                // 簡易的に1秒待機で十分実用的
                 setTimeout(() => {
-                    state.baseAngle = null; // 次のフレームで再設定される
-                    state.isCooldown = false;
-                }, 500); 
-            }, 800);
+                    state.cooldown = false;
+                }, 800);
+            }, 500);
         }
 
         function showFeedback(cls, text) {
-            els.game.feedback.className = `feedback-overlay show ${cls}`;
-            els.game.fbIcon.innerText = cls === 'correct' ? '⭕' : '⏭️';
-            els.game.fbText.innerText = text;
+            $('feedback').className = `feedback show ${cls}`;
+            $('fb-icon').innerText = cls === 'correct' ? '⭕' : '⏭️';
+            $('fb-text').innerText = text;
         }
-
         function hideFeedback() {
-            els.game.feedback.classList.remove('show');
+            $('feedback').classList.remove('show');
         }
 
-        function endGame() {
-            state.isPlaying = false;
-            clearInterval(state.timer);
-            window.removeEventListener('deviceorientation', handleOrientation);
+        // --- ゲーム終了 ---
+        function finishGame() {
+            state.playing = false;
+            clearInterval(gameTimer);
+            window.removeEventListener('devicemotion', handleMotion);
             
             // カメラ停止
-            if(els.game.video.srcObject) {
-                els.game.video.srcObject.getTracks().forEach(t => t.stop());
+            const vid = $('video-bg');
+            if(vid.srcObject) {
+                vid.srcObject.getTracks().forEach(t => t.stop());
             }
 
-            sounds.end();
-            showResult();
+            playSound(600, 'sawtooth');
+            
+            // 結果表示
+            $('res-score').innerText = state.correct.length;
+            $('list-correct').innerHTML = state.correct.map(t => `<div style="padding:5px; border-bottom:1px solid #333;">${t}</div>`).join('');
+            $('list-pass').innerHTML = state.pass.map(t => `<div style="padding:5px; border-bottom:1px solid #333;">${t}</div>`).join('');
+            
+            showScreen('result');
         }
 
-        function showResult() {
-            changeScreen('result');
-            document.getElementById('res-score').innerText = state.correctItems.length;
-            
-            els.lists.resCorrect.innerHTML = state.correctItems.map(t => 
-                `<div class="list-item"><span>${t}</span><span style="color:var(--success)">⭕</span></div>`
-            ).join('') || '<div style="padding:10px; color:#666;">なし</div>';
-            
-            els.lists.resPass.innerHTML = state.passItems.map(t => 
-                `<div class="list-item"><span>${t}</span><span style="color:var(--pass)">⏭️</span></div>`
-            ).join('') || '<div style="padding:10px; color:#666;">なし</div>';
+        // --- 簡易サウンド ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(freq, type) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.value = freq;
+            osc.type = type;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.stop(audioCtx.currentTime + 0.2);
         }
-
-        // 開始
-        init();
+        
+        // デバッグ用
+        let dbgCount = 0;
+        function toggleDebug() {
+            dbgCount++;
+            if(dbgCount > 5) $('debug').style.display = 'block';
+        }
 
     </script>
 </body>
