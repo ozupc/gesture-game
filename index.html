@@ -200,6 +200,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            padding-bottom: 20px; /* スクロール時の余白確保 */
         }
 
         .btn-primary {
@@ -350,19 +351,41 @@
             align-items: center;
         }
 
-        /* Result Screen */
-        #screen-result .result-score {
+        /* Result Screen Scroll Fix */
+        #screen-result {
+            /* スクロール設定は .screen クラスで定義済みだが、
+               内部コンテナのflex設定で確実にスクロールさせる */
+        }
+        
+        .result-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            min-height: 100%; /* コンテンツが少なくても高さを確保 */
+        }
+
+        .result-score {
             font-size: 80px;
             font-weight: 800;
             color: var(--accent);
             text-align: center;
             margin: 10px 0 20px;
+            flex-shrink: 0;
         }
         
+        .result-lists-wrapper {
+            flex: 1; /* 残りの領域を埋める */
+            display: flex;
+            flex-direction: column;
+        }
+
         #video-section {
             display: none;
             width: 100%;
             margin-top: 20px;
+            flex-shrink: 0;
         }
         
         #recorded-video {
@@ -370,7 +393,7 @@
             border-radius: var(--radius-md);
             background: #000;
             margin-bottom: 10px;
-            max-height: 250px;
+            max-height: 300px;
         }
 
         /* Rotate Warning */
@@ -509,13 +532,13 @@
 
     <!-- 7. 結果画面 -->
     <div id="screen-result" class="screen">
-        <div style="width: 100%; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; height: 100%;">
+        <div class="result-container">
             <div style="text-align:center; padding-top:10px;">
                 <h2>結果発表</h2>
                 <div class="result-score"><span id="result-number">0</span><span style="font-size:30px;">問</span></div>
             </div>
             
-            <div style="flex: 1; overflow-y: auto; margin: 0 0 16px 0;">
+            <div class="result-lists-wrapper">
                 <div style="background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow-sm); overflow:hidden; margin-bottom:16px;">
                     <div style="padding:15px; background:var(--surface-secondary); color:var(--text-sub); font-size:13px; font-weight:700;">正解リスト</div>
                     <div id="result-list-correct"></div>
@@ -532,7 +555,7 @@
                 </div>
             </div>
 
-            <div class="action-area" style="padding-top:0;">
+            <div class="action-area">
                 <button class="btn-primary" onclick="goHome()">ホームに戻る</button>
             </div>
         </div>
@@ -697,7 +720,7 @@
             if (state.useCamera) {
                 navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'user' },
-                    audio: false // 音声は含めない（ハウリング防止等）
+                    audio: false // 音声は含めない
                 }).then(stream => {
                     $('camera-feed').srcObject = stream;
                     setupRecorder(stream);
@@ -718,7 +741,6 @@
         function setupRecorder(stream) {
             state.recordedChunks = [];
             try {
-                // Safariなど互換性のためmimeTypeを指定しない、またはmp4/webmをトライする
                 const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
                     ? { mimeType: 'video/webm;codecs=vp9' } 
                     : (MediaRecorder.isTypeSupported('video/mp4') ? { mimeType: 'video/mp4' } : {});
@@ -791,7 +813,7 @@
             $('question-display').innerText = state.questions[state.qIndex] || '終了';
         }
 
-        // --- 即時判定ロジック (Speed Priority) ---
+        // --- 判定ロジック (Deep Tilt Only) ---
         function handleMotion(e) {
             if (!state.isPlaying) return;
 
@@ -800,7 +822,7 @@
             
             const now = Date.now();
 
-            // 1. 強制クールダウン (誤作動防止)
+            // 1. 強制クールダウン
             if (state.motionState === 'cooldown') {
                 if (now > state.cooldownEndTime) {
                     state.motionState = 'triggered'; 
@@ -808,12 +830,12 @@
                 return;
             }
 
-            const THRESHOLD_TRIGGER = 7.0; // 閾値
-            const THRESHOLD_RESET = 3.0;   // 復帰閾値（少し緩めに）
+            // 閾値を厳しく（9.0 = ほぼ真下/真上）
+            const THRESHOLD_TRIGGER = 9.0; 
+            const THRESHOLD_RESET = 3.0; 
 
             // 2. ニュートラル：判定
             if (state.motionState === 'neutral') {
-                // 閾値を超えたら即反応
                 if (z > THRESHOLD_TRIGGER) {
                     doAnswer(true);
                 } else if (z < -THRESHOLD_TRIGGER) {
@@ -890,7 +912,6 @@
             // カメラストリーム停止
             const vid = $('camera-feed');
             if (vid.srcObject) {
-                // Recorder停止を待つために少し遅らせても良いが、srcObjectは切ってもBlob生成はされることが多い
                 vid.srcObject.getTracks().forEach(t => t.stop());
             }
 
@@ -924,7 +945,6 @@
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = url;
-            // 日付ファイル名
             const d = new Date();
             const filename = `gesture_game_${d.getFullYear()}${d.getMonth()+1}${d.getDate()}_${d.getHours()}${d.getMinutes()}.webm`;
             a.download = filename;
