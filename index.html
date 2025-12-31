@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ジェスチャーゲーム</title>
     <style>
         * {
@@ -42,9 +42,13 @@
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
             background-color: var(--bg-primary);
             color: var(--text-primary);
-            min-height: 100vh;
-            min-height: 100dvh;
-            overflow: hidden;
+            /* overflow: hidden; を削除し、画面全体でのスクロール挙動を修正 */
+            overscroll-behavior-y: none; /* バウンススクロール防止 */
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            position: fixed; /* 全体を固定してコンテンツのみスクロールさせるモダンな手法 */
+            inset: 0;
         }
 
         .rotate-message {
@@ -82,21 +86,28 @@
         .app-container {
             display: flex;
             flex-direction: column;
-            min-height: 100vh;
-            min-height: 100dvh;
+            width: 100%;
+            height: 100%;
         }
 
         .screen {
             display: none;
             flex-direction: column;
-            min-height: 100vh;
-            min-height: 100dvh;
+            width: 100%;
+            height: 100%;
             padding: 16px;
             padding-left: max(16px, env(safe-area-inset-left));
             padding-right: max(16px, env(safe-area-inset-right));
+            overflow-y: auto; /* 各画面ごとにスクロールを許可 */
+            -webkit-overflow-scrolling: touch;
         }
 
         .screen.active { display: flex; }
+
+        /* ゲーム画面などはスクロールさせない */
+        #game-screen, #countdown-screen {
+            overflow: hidden;
+        }
 
         .loading-screen {
             position: fixed;
@@ -129,8 +140,22 @@
         @keyframes spin { to { transform: rotate(360deg); } }
 
         #home-screen {
-            justify-content: center;
+            /* 中央寄せにしつつ、コンテンツが多い場合は上から表示してスクロール可能にする */
+            justify-content: flex-start; 
             align-items: center;
+            gap: 30px;
+            padding-top: max(40px, env(safe-area-inset-top));
+            padding-bottom: max(40px, env(safe-area-inset-bottom));
+        }
+        
+        /* 画面が大きい場合は中央寄せにするためのラッパー */
+        .home-content-wrapper {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100%; /* コンテンツが少なくても中央に来るように */
             gap: 30px;
         }
 
@@ -149,6 +174,8 @@
         .menu-container {
             width: 100%;
             max-width: 500px;
+            /* 下部に余裕を持たせる */
+            margin-bottom: 20px;
         }
 
         .menu-section {
@@ -268,6 +295,7 @@
             justify-content: space-between;
             padding: 10px 4px;
             min-height: 44px;
+            flex-shrink: 0; /* ヘッダーが縮まないように */
         }
 
         .nav-button {
@@ -289,6 +317,7 @@
             flex: 1;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
+            padding-bottom: 20px;
         }
 
         .selection-item {
@@ -342,10 +371,10 @@
             color: var(--accent);
         }
 
+        /* ゲーム画面 */
         #game-screen {
             padding: 0;
             position: relative;
-            overflow: hidden;
         }
 
         .game-camera-bg {
@@ -411,12 +440,18 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            /* 長いテキストがはみ出さないように */
+            padding: 0 20px;
         }
 
         .question-text {
             font-size: 80px;
             font-weight: 700;
             text-align: center;
+            /* 文字サイズ調整（clamp使用） */
+            font-size: clamp(40px, 10vw, 90px);
+            word-break: keep-all;
+            line-height: 1.2;
         }
 
         .instruction-sidebar {
@@ -502,9 +537,15 @@
             50% { transform: scale(1.1); opacity: 0.8; }
         }
 
+        /* 結果画面 */
         #result-screen {
+            /* 横並びから縦並びにレスポンシブ対応しやすいように変更 */
             flex-direction: row;
             gap: 24px;
+        }
+
+        @media (max-width: 600px) and (orientation: portrait) {
+             #result-screen { flex-direction: column; }
         }
 
         .result-left {
@@ -581,6 +622,8 @@
             display: flex;
             gap: 16px;
             overflow: hidden;
+            /* モバイル対応 */
+            min-height: 200px;
         }
 
         .result-section {
@@ -603,6 +646,7 @@
             background: var(--bg-secondary);
             border-radius: 10px;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .result-item {
@@ -619,6 +663,7 @@
             font-size: 14px;
         }
 
+        /* Video Preview */
         .video-preview-overlay {
             position: fixed;
             inset: 0;
@@ -638,12 +683,15 @@
             overflow: hidden;
             max-width: 90%;
             max-height: 90%;
+            display: flex;
+            flex-direction: column;
         }
 
         .video-preview-container video {
             max-width: 100%;
             max-height: 60vh;
             display: block;
+            background: black;
         }
 
         .video-preview-actions {
@@ -726,37 +774,40 @@
     </div>
 
     <div class="app-container">
+        <!-- 修正: home-content-wrapper を追加してコンテンツのセンタリングとスクロールを両立 -->
         <div id="home-screen" class="screen active">
-            <div>
-                <h1 class="app-title">🎭 ジェスチャーゲーム</h1>
-                <p class="app-subtitle">おでこにスマホを当てて遊ぼう！</p>
-            </div>
-            <div class="menu-container">
-                <p class="menu-section-title">ゲーム設定</p>
-                <div class="menu-section">
-                    <div class="menu-item" id="genre-select">
-                        <div class="menu-item-left">
-                            <div class="menu-item-icon" style="background:#FF9500;">📁</div>
-                            <span class="menu-item-label">ジャンル</span>
-                        </div>
-                        <span class="menu-item-value" id="selected-genre">選択してください</span>
-                    </div>
-                    <div class="menu-item" id="time-select">
-                        <div class="menu-item-left">
-                            <div class="menu-item-icon" style="background:#34C759;">⏱️</div>
-                            <span class="menu-item-label">制限時間</span>
-                        </div>
-                        <span class="menu-item-value" id="selected-time">1分</span>
-                    </div>
-                    <div class="menu-item">
-                        <div class="menu-item-left">
-                            <div class="menu-item-icon" style="background:#FF3B30;">🎥</div>
-                            <span class="menu-item-label">録画する</span>
-                        </div>
-                        <div class="toggle-switch" id="camera-toggle"></div>
-                    </div>
+            <div class="home-content-wrapper">
+                <div>
+                    <h1 class="app-title">🎭 ジェスチャーゲーム</h1>
+                    <p class="app-subtitle">おでこにスマホを当てて遊ぼう！</p>
                 </div>
-                <button class="start-button" id="start-btn" disabled>ゲームスタート</button>
+                <div class="menu-container">
+                    <p class="menu-section-title">ゲーム設定</p>
+                    <div class="menu-section">
+                        <div class="menu-item" id="genre-select">
+                            <div class="menu-item-left">
+                                <div class="menu-item-icon" style="background:#FF9500;">📁</div>
+                                <span class="menu-item-label">ジャンル</span>
+                            </div>
+                            <span class="menu-item-value" id="selected-genre">選択してください</span>
+                        </div>
+                        <div class="menu-item" id="time-select">
+                            <div class="menu-item-left">
+                                <div class="menu-item-icon" style="background:#34C759;">⏱️</div>
+                                <span class="menu-item-label">制限時間</span>
+                            </div>
+                            <span class="menu-item-value" id="selected-time">1分</span>
+                        </div>
+                        <div class="menu-item">
+                            <div class="menu-item-left">
+                                <div class="menu-item-icon" style="background:#FF3B30;">🎥</div>
+                                <span class="menu-item-label">録画する</span>
+                            </div>
+                            <div class="toggle-switch" id="camera-toggle"></div>
+                        </div>
+                    </div>
+                    <button class="start-button" id="start-btn" disabled>ゲームスタート</button>
+                </div>
             </div>
         </div>
 
@@ -764,7 +815,7 @@
             <div class="nav-bar">
                 <button class="nav-button" id="genre-back">キャンセル</button>
                 <span class="nav-title">ジャンル選択</span>
-                <span class="nav-button"></span>
+                <span class="nav-button"></span> <!-- レイアウト調整用のダミー -->
             </div>
             <div class="selection-list" id="genre-list"></div>
         </div>
