@@ -6,11 +6,53 @@
     <meta name="theme-color" content="#F5F5F7">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ジェスチャー">
     <title>ジェスチャーゲーム</title>
 
-    <!-- アプリアイコン設定 (白背景 + 🙆) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22white%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2270%22>🙆</text></svg>">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22white%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2270%22>🙆</text></svg>">
+    <!-- アイコン生成スクリプト (iOS対応版) -->
+    <script>
+        (function() {
+            // 絵文字をPNG画像に変換してアイコンに設定する関数
+            function setEmojiIcon(emoji) {
+                const canvas = document.createElement('canvas');
+                // iOSの推奨サイズ (180x180)
+                canvas.width = 180;
+                canvas.height = 180;
+                const ctx = canvas.getContext('2d');
+
+                // 背景色 (白)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // 絵文字を描画
+                ctx.font = '140px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                // 微調整: Y座標を中心に合わせる
+                ctx.fillText(emoji, canvas.width / 2, canvas.height / 2 + 10);
+
+                // PNGデータURLを取得
+                const dataUrl = canvas.toDataURL('image/png');
+
+                // <link>タグを生成・更新
+                const updateLink = (rel) => {
+                    let link = document.querySelector(`link[rel="${rel}"]`);
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = rel;
+                        document.head.appendChild(link);
+                    }
+                    link.href = dataUrl;
+                };
+
+                updateLink('icon');
+                updateLink('apple-touch-icon');
+            }
+
+            // 即時実行
+            setEmojiIcon('🙆');
+        })();
+    </script>
 
     <style>
         /* --- Modern Light Theme --- */
